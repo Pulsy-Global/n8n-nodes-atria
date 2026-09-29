@@ -24,8 +24,11 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      # With npm Trusted Publishing configured for this repo/workflow the token can be
-      # dropped and `npm publish --provenance` authenticates via OIDC instead.
-      - run: npm publish --provenance --access public
+      # Publishing uses npm Trusted Publishing (OIDC) — no repository secret required.
+      # Requires the workflow permission above (id-token: write) plus the
+      # "Trusted Publisher" configured on npmjs.com for this repo + workflow file.
+      #
+      # Token fallback (needs repo Admin rights to add the secret):
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --provenance --access public

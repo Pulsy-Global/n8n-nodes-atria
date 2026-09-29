@@ -39,6 +39,30 @@ docker exec n8n-atria-dev grep -o 'n8n-nodes-atria[a-zA-Z.]*' /tmp/nodes.json | 
   appears for the right resource.
 - Update `CHANGELOG.md` and bump the version before publishing.
 
+## Publishing a release
+
+The npm package is published from GitHub Actions (`.github/workflows/release.yml`) when a GitHub
+Release is created. Two supported auth paths:
+
+1. **npm Trusted Publishing (preferred, no repository secrets).**
+   Configure once on npmjs.com: package → Settings → Publishing → *Trusted Publisher* →
+   GitHub Actions → owner `Pulsy-Global`, repo `n8n-nodes-atria`, workflow file `release.yml`.
+   Note: the package must exist first, so publish `0.1.0` manually once (see below).
+2. **Token based (needs repo Admin on GitHub).**
+   Add an `NPM_TOKEN` repository secret (Settings → Secrets and variables → Actions) and uncomment
+   the `env: NODE_AUTH_TOKEN` block in `release.yml`.
+
+Manual publish (for the very first release or a hotfix):
+
+```bash
+npm login
+npm run build
+npm publish --access public
+```
+
+Release checklist: version bumped in `package.json`, entry added to `CHANGELOG.md`, `main` green,
+then create a Release with tag `vX.Y.Z`.
+
 ## Reporting issues
 
 Include the node name, resource/operation, n8n version, and (if possible) the API response body —
