@@ -1,0 +1,51 @@
+{
+	"name": "n8n-nodes-atria",
+	"version": "0.1.0",
+	"description": "Atria community nodes for n8n: deploy and manage blockchain data feeds, and stream feed results into your workflows",
+	"keywords": [
+		"n8n-community-node-package",
+		"atria",
+		"blockchain",
+		"feeds",
+		"webhook"
+	],
+	"license": "MIT",
+	"homepage": "https://github.com/pulsy-works/n8n-nodes-atria",
+	"author": {
+		"name": "Pulsy Labs LLC"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/pulsy-works/n8n-nodes-atria.git"
+	},
+	"engines": {
+		"node": ">=18.10"
+	},
+	"main": "",
+	"scripts": {
+		"build": "rimraf dist && tsc && node scripts/postbuild.mjs",
+		"dev": "tsc --watch",
+		"prepublishOnly": "npm run build"
+	},
+	"files": [
+		"dist",
+		"LICENSE.md",
+		"README.md"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"credentials": [
+			"dist/credentials/AtriaApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Atria/Atria.node.js",
+			"dist/nodes/AtriaTrigger/AtriaTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.0",
+		"n8n-workflow": "^2.16.0",
+		"rimraf": "^6.0.1",
+		"typescript": "~5.7.2"
+	}
+}
