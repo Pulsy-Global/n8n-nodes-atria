@@ -10,13 +10,13 @@
 		"webhook"
 	],
 	"license": "MIT",
-	"homepage": "https://github.com/pulsy-works/n8n-nodes-atria",
+	"homepage": "https://github.com/Pulsy-Global/n8n-nodes-atria",
 	"author": {
 		"name": "Pulsy Labs LLC"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/pulsy-works/n8n-nodes-atria.git"
+		"url": "git+https://github.com/Pulsy-Global/n8n-nodes-atria.git"
 	},
 	"engines": {
 		"node": ">=18.10"

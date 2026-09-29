@@ -5,7 +5,7 @@ export class AtriaApi implements ICredentialType {
 
 	displayName = 'Atria API';
 
-	documentationUrl = 'https://github.com/pulsy-works/n8n-nodes-atria';
+	documentationUrl = 'https://github.com/Pulsy-Global/n8n-nodes-atria';
 
 	properties: INodeProperties[] = [
 		{
