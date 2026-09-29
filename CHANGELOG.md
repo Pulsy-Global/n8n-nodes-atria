@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [0.1.1] - 2026-09-29
+
+### Changed
+
+- No functional changes. Released through the GitHub Actions publish workflow so the package
+  carries npm provenance (attestation from the CI run instead of a local machine).
+
 ## [0.1.0] - 2026-09-29
 
 ### Added

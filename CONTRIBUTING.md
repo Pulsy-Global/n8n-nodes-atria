@@ -60,8 +60,18 @@ npm run build
 npm publish --access public
 ```
 
-Release checklist: version bumped in `package.json`, entry added to `CHANGELOG.md`, `main` green,
-then create a Release with tag `vX.Y.Z`.
+Release checklist:
+
+1. `CHANGELOG.md` entry + version bumped in `package.json` (`npm version patch --no-git-tag-version`
+   keeps `package-lock.json` in sync) in the **same commit**;
+2. `main` is green;
+3. GitHub → Releases → **Draft a new release**, target `main`, *Choose tag* → type `vX.Y.Z` →
+   **Create a new tag on publish** (GitHub points the tag at the current `main` commit) → Publish.
+
+The publish workflow checks that `v<package.json version>` equals the release tag and that the
+version is not in the registry yet, so a mismatched tag fails fast instead of publishing a stale
+tarball. Version numbers are permanent: never reuse one, and avoid `npm unpublish` (deleting the
+only published version locks the package name for 24 h).
 
 ## Reporting issues
 

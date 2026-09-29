@@ -27,6 +27,24 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      # A release tag does not change what gets published: npm publishes the version found in
+      # package.json at the commit the tag points to. Guard against the two classic mistakes —
+      # tag bumped but version not, or re-tagging an already published version.
+      - name: Check release version
+        if: github.event_name == 'release'
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "package.json: $PKG_VERSION   release tag: ${{ github.ref_name }}"
+          if [ "v$PKG_VERSION" != "${{ github.ref_name }}" ]; then
+            echo "::error::Version mismatch — tag is ${{ github.ref_name }} but package.json says $PKG_VERSION."
+            echo "::error::Bump the version (npm version patch --no-git-tag-version), commit it, and tag that commit."
+            exit 1
+          fi
+          if npm view "n8n-nodes-atria@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::error::n8n-nodes-atria@$PKG_VERSION is already published. Bump the version instead of re-tagging."
+            exit 1
+          fi
+
       # actions/setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
       # and, when the secret is absent, substitutes the literal placeholder
       # `XXXXX-XXXXX-XXXXX-XXXXX`. npm then publishes *anonymously*, and the registry
