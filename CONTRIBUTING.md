@@ -42,23 +42,19 @@ docker exec n8n-atria-dev grep -o 'n8n-nodes-atria[a-zA-Z.]*' /tmp/nodes.json | 
 ## Publishing a release
 
 The npm package is published from GitHub Actions (`.github/workflows/release.yml`) when a GitHub
-Release is created. Two supported auth paths:
+Release is created. Authentication uses **npm Trusted Publishing (OIDC)** — there is no repository
+secret, no token to rotate, and no OTP prompt.
 
-1. **npm Trusted Publishing (preferred, no repository secrets).**
-   Configure once on npmjs.com: package → Settings → Publishing → *Trusted Publisher* →
-   GitHub Actions → owner `Pulsy-Global`, repo `n8n-nodes-atria`, workflow file `release.yml`.
-   Note: the package must exist first, so publish `0.1.0` manually once (see below).
-2. **Token based (needs repo Admin on GitHub).**
-   Add an `NPM_TOKEN` repository secret (Settings → Secrets and variables → Actions) and uncomment
-   the `env: NODE_AUTH_TOKEN` block in `release.yml`.
+> Granular access tokens that bypass 2FA are being retired by npm for direct publishing: a CI run
+> with `NPM_TOKEN` fails with `EOTP` (npm cannot ask for a one-time password non-interactively).
+> Trusted Publishing is the supported replacement.
 
-Manual publish (for the very first release or a hotfix):
+One-time setup (requires the package to exist on npm — `0.1.0` already does):
 
-```bash
-npm login
-npm run build
-npm publish --access public
-```
+1. npmjs.com → package `n8n-nodes-atria` → **Settings** → **Trusted Publisher** → add *GitHub Actions*;
+2. Owner `Pulsy-Global`, Repository `n8n-nodes-atria`, Workflow name `release.yml` (the file name,
+   must match exactly), Environment name — leave empty;
+3. The workflow needs `permissions: id-token: write` (already set).
 
 Release checklist:
 
@@ -68,10 +64,15 @@ Release checklist:
 3. GitHub → Releases → **Draft a new release**, target `main`, *Choose tag* → type `vX.Y.Z` →
    **Create a new tag on publish** (GitHub points the tag at the current `main` commit) → Publish.
 
-The publish workflow checks that `v<package.json version>` equals the release tag and that the
-version is not in the registry yet, so a mismatched tag fails fast instead of publishing a stale
-tarball. Version numbers are permanent: never reuse one, and avoid `npm unpublish` (deleting the
-only published version locks the package name for 24 h).
+For a `release` event the workflow file itself is taken from the **tag's commit**, so the tag must
+point at a commit that already contains the bump. The publish job checks that
+`v<package.json version>` equals the tag and that the version is not in the registry yet. Version
+numbers are permanent: never reuse one, and avoid `npm unpublish` (deleting the only published
+version locks the package name for 24 h).
+
+Manual publish (emergency only, e.g. npm or GitHub Actions is down): authenticate with
+`npm login` and run `npm publish --access public --no-provenance` — provenance cannot be created
+outside CI, so such a release will be listed as unsigned.
 
 ## Reporting issues
 

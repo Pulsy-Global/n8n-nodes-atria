@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  # Required for npm provenance / trusted publishing
+  # Required for npm provenance and Trusted Publishing (OIDC)
   id-token: write
 
 jobs:
@@ -16,13 +16,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node 24 ships npm >= 11.5.1, which is required both for --provenance and
-      # for npm Trusted Publishing (OIDC), so the token path can be swapped later
-      # without changing the runner setup.
       - uses: actions/setup-node@v4
         with:
+          # No `registry-url` here: with Trusted Publishing there is no token to write into
+          # .npmrc, and omitting it also drops setup-node's deprecated `always-auth` entry
+          # (source of the "Unknown user config \"always-auth\"" warning). The default registry
+          # is https://registry.npmjs.org/ already.
           node-version: 24
-          registry-url: https://registry.npmjs.org
+
+      # npm Trusted Publishing requires npm >= 11.5.1 (OIDC token exchange did not exist
+      # before 11.5). Node 24.0 shipped npm 11.3, so pin explicitly rather than trusting
+      # whatever the runner image provides.
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          node --version
+          npm --version
 
       - run: npm ci
       - run: npm run build
@@ -45,32 +54,15 @@ jobs:
             exit 1
           fi
 
-      # actions/setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
-      # and, when the secret is absent, substitutes the literal placeholder
-      # `XXXXX-XXXXX-XXXXX-XXXXX`. npm then publishes *anonymously*, and the registry
-      # answers with the misleading `404 Not Found - PUT https://registry.npmjs.org/<pkg>`.
-      # Fail here instead, with a readable message.
-      - name: Check npm credentials
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          node --version
-          npm --version
-          if [ -z "${NODE_AUTH_TOKEN:-}" ] || [ "${NODE_AUTH_TOKEN}" = "XXXXX-XXXXX-XXXXX-XXXXX" ]; then
-            echo "::error::NPM_TOKEN is not reaching the workflow. Add it as a *repository* secret"
-            echo "::error::(Settings -> Secrets and variables -> Actions -> New repository secret),"
-            echo "::error::named exactly NPM_TOKEN. An environment secret, or an org secret that does"
-            echo "::error::not include this repository, will not be visible here."
-            exit 1
-          fi
-          npm whoami
-
+      # Authentication is npm Trusted Publishing: npm exchanges the GitHub Actions OIDC
+      # id-token for a short-lived publish token, so no NPM_TOKEN secret and no OTP prompt
+      # (granular tokens that bypass 2FA are being retired for direct publishing).
+      #
+      # One-time setup on npmjs.com -> package n8n-nodes-atria -> Settings -> Trusted Publisher:
+      #   Provider: GitHub Actions
+      #   Owner/organization: Pulsy-Global
+      #   Repository name:    n8n-nodes-atria
+      #   Workflow name:      release.yml     <- file name, must match exactly
+      #   Environment name:   <empty>
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
-
-      # Secret-free alternative (no NPM_TOKEN at all): configure the package on
-      # npmjs.com -> Settings -> Trusted Publisher -> GitHub Actions with
-      # owner Pulsy-Global, repository n8n-nodes-atria, workflow file release.yml,
-      # then delete the two `env:` blocks above. Requires npm >= 11.5.1 (Node 24).
