@@ -1,16 +1,30 @@
-import type { IDataObject, INodeExecutionData, INodeProperties } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
-import {
-	atriaApiRequest,
-	atriaListAll,
-	feedToUpdateBody,
-	headersToMap,
-	parseJsonParameter,
-	searchModes,
-} from '../genericFunctions';
+import type { INodeProperties, INodePropertyOptions } from 'n8n-workflow';
+import { searchModes } from '../../Shared/lib/property-modes';
+import { DATA_TYPES, ERROR_HANDLING } from '../../Shared/constants';
 
-const DATA_TYPES = ['BlockWithTransactions', 'BlockWithLogs', 'BlockWithTraces'];
-const ERROR_HANDLING = ['StopOnError', 'ContinueOnError'];
+/** Feed operations offered in the UI — also drives the `feed:*` registry keys. */
+export const FEED_OPERATIONS = [
+	{ name: 'Create', value: 'create', description: 'Create a custom feed (filter/function code)' },
+	{
+		name: 'Create From Library',
+		value: 'createFromLibrary',
+		description: 'Deploy a feed built from a library template',
+	},
+	{ name: 'Delete', value: 'delete', description: 'Delete a feed' },
+	{ name: 'Get', value: 'get', description: 'Get a single feed' },
+	{ name: 'Get Many', value: 'list', description: 'List feeds' },
+	{
+		name: 'Get Results',
+		value: 'getResults',
+		description: 'Fetch recent delivery results of a feed',
+	},
+	{ name: 'Pause', value: 'pause', description: 'Pause a running feed' },
+	{ name: 'Start', value: 'start', description: 'Start (deploy) a feed' },
+	{ name: 'Test', value: 'test', description: 'Dry-run filter/function against a block' },
+	{ name: 'Update', value: 'update', description: 'Update an existing feed' },
+] as const satisfies readonly INodePropertyOptions[];
+
+export type FeedOperation = (typeof FEED_OPERATIONS)[number]['value'];
 
 export const feedProperties: INodeProperties[] = [
 	{
@@ -19,26 +33,7 @@ export const feedProperties: INodeProperties[] = [
 		type: 'options',
 		noDataExpression: true,
 		displayOptions: { show: { resource: ['feed'] } },
-		options: [
-			{ name: 'Create', value: 'create', description: 'Create a custom feed (filter/function code)' },
-			{
-				name: 'Create From Library',
-				value: 'createFromLibrary',
-				description: 'Deploy a feed built from a library template',
-			},
-			{ name: 'Delete', value: 'delete', description: 'Delete a feed' },
-			{ name: 'Get', value: 'get', description: 'Get a single feed' },
-			{ name: 'Get Many', value: 'list', description: 'List feeds' },
-			{
-				name: 'Get Results',
-				value: 'getResults',
-				description: 'Fetch recent delivery results of a feed',
-			},
-			{ name: 'Pause', value: 'pause', description: 'Pause a running feed' },
-			{ name: 'Start', value: 'start', description: 'Start (deploy) a feed' },
-			{ name: 'Test', value: 'test', description: 'Dry-run filter/function against a block' },
-			{ name: 'Update', value: 'update', description: 'Update an existing feed' },
-		],
+		options: [...FEED_OPERATIONS],
 		default: 'list',
 	},
 	// --- shared feed id ---
@@ -297,186 +292,3 @@ export const feedProperties: INodeProperties[] = [
 		description: 'OData search term matched against feed name/description',
 	},
 ];
-
-function buildCreateBody(get: (name: string) => any, node: any): IDataObject {
-	const outputIds = (get('outputIds') as string[]) ?? [];
-	if (outputIds.length === 0) {
-		throw new NodeOperationError(node, 'At least one output is required to create a feed');
-	}
-	const startBlock = Number(get('startBlock'));
-	const endBlock = Number(get('endBlock'));
-	return {
-		name: get('name'),
-		version: get('version') || '1.0',
-		description: get('description') || undefined,
-		networkId: get('networkId'),
-		dataType: get('dataType'),
-		errorHandling: get('errorHandling'),
-		startBlock: startBlock > 0 ? startBlock : null,
-		endBlock: endBlock > 0 ? endBlock : null,
-		filterCode: get('filterCode') || null,
-		functionCode: get('functionCode') || null,
-		outputIds,
-		tagIds: (get('tagIds') as string[]) ?? [],
-		blockDelay: Number(get('blockDelay')) || 0,
-	};
-}
-
-export async function executeFeedOperation(
-	this: any,
-	itemIndex: number,
-): Promise<INodeExecutionData[]> {
-	const get = (name: string) => this.getNodeParameter(name, itemIndex);
-	const operation = get('operation') as string;
-	const endpoint = '/feeds';
-
-	switch (operation) {
-		case 'list': {
-			const qs: IDataObject = {};
-			if (get('search')) qs.search = get('search');
-			const items = await atriaListAll.call(
-				this,
-				endpoint,
-				Number(get('listLimit')),
-				Boolean(get('returnAll')),
-				qs,
-			);
-			return items.map((json) => ({ json }));
-		}
-		case 'get': {
-			const json = await atriaApiRequest.call(this, {
-				method: 'GET',
-				endpoint: `${endpoint}/${get('feedId')}`,
-			});
-			return [{ json }];
-		}
-		case 'create': {
-			const json = await atriaApiRequest.call(this, {
-				method: 'POST',
-				endpoint,
-				body: buildCreateBody(get, this.getNode()),
-			});
-			return [{ json }];
-		}
-		case 'createFromLibrary': {
-			const outputIds = (get('outputIds') as string[]) ?? [];
-			if (outputIds.length === 0) {
-				throw new NodeOperationError(
-					this.getNode(),
-					'At least one output is required to deploy a feed',
-					{ itemIndex },
-				);
-			}
-			const startBlock = Number(get('startBlock'));
-			const endBlock = Number(get('endBlock'));
-			const body: IDataObject = {
-				feedLibraryId: get('feedLibraryId'),
-				name: get('name') || get('feedLibraryId'),
-				errorHandling: get('errorHandling'),
-				filterConfig: parseJsonParameter(
-					this.getNode(),
-					itemIndex,
-					get('filterConfig'),
-					'filterConfig',
-				),
-				functionConfig: parseJsonParameter(
-					this.getNode(),
-					itemIndex,
-					get('functionConfig'),
-					'functionConfig',
-				),
-				outputIds,
-				tagIds: (get('tagIds') as string[]) ?? [],
-			};
-			if (startBlock > 0) body.startBlock = startBlock;
-			if (endBlock > 0) body.endBlock = endBlock;
-
-			const json = await atriaApiRequest.call(this, {
-				method: 'POST',
-				endpoint: '/feeds/library',
-				body,
-			});
-			return [{ json }];
-		}
-		case 'update': {
-			const feedId = get('feedId') as string;
-			const feed = await atriaApiRequest.call(this, {
-				method: 'GET',
-				endpoint: `${endpoint}/${feedId}`,
-			});
-			const overrides: IDataObject = {};
-			if (get('updateName')) overrides.name = get('updateName');
-			if (get('updateDescription')) overrides.description = get('updateDescription');
-			if (get('replaceOutputs')) overrides.outputIds = (get('outputIds') as string[]) ?? [];
-			const tagIds = get('tagIds') as string[];
-			if (Array.isArray(tagIds) && tagIds.length) overrides.tagIds = tagIds;
-
-			const json = await atriaApiRequest.call(this, {
-				method: 'PUT',
-				endpoint: `${endpoint}/${feedId}`,
-				body: feedToUpdateBody(feed, overrides),
-			});
-			return [{ json }];
-		}
-		case 'delete': {
-			await atriaApiRequest.call(this, {
-				method: 'DELETE',
-				endpoint: `${endpoint}/${get('feedId')}`,
-			});
-			return [{ json: { id: get('feedId'), deleted: true } }];
-		}
-		case 'start': {
-			const json = await atriaApiRequest.call(this, {
-				method: 'POST',
-				endpoint: `${endpoint}/${get('feedId')}/start`,
-				qs: { resetCursor: Boolean(get('resetCursor')) },
-			});
-			return [{ json: json ?? { id: get('feedId'), started: true } }];
-		}
-		case 'pause': {
-			const json = await atriaApiRequest.call(this, {
-				method: 'POST',
-				endpoint: `${endpoint}/${get('feedId')}/pause`,
-			});
-			return [{ json: json ?? { id: get('feedId'), paused: true } }];
-		}
-		case 'getResults': {
-			const results = await atriaApiRequest.call(this, {
-				method: 'GET',
-				endpoint: `${endpoint}/${get('feedId')}/results`,
-				qs: { limit: Number(get('limit')) },
-			});
-			const list = Array.isArray(results) ? results : [results];
-			return list.map((result: IDataObject) => {
-				const json = { ...result };
-				if (typeof json.data === 'string') {
-					try {
-						json.data = JSON.parse(json.data);
-					} catch {
-						/* keep raw string */
-					}
-				}
-				return { json };
-			});
-		}
-		case 'test': {
-			const body: IDataObject = {
-				blockchainId: get('networkId'),
-				dataType: get('dataType'),
-				blockNumber: String(get('blockNumber')),
-				filterCode: get('filterCode') || null,
-				functionCode: get('functionCode') || null,
-				executeOutputs: Boolean(get('executeOutputs')),
-			};
-			const outputsIds = get('testOutputsIds') as string[];
-			if (Array.isArray(outputsIds) && outputsIds.length) body.outputsIds = outputsIds;
-
-			const json = await atriaApiRequest.call(this, { method: 'POST', endpoint: '/feeds/test', body });
-			return [{ json: json ?? {} }];
-		}
-		default:
-			throw new NodeOperationError(this.getNode(), `Feed operation "${operation}" is not supported`, {
-				itemIndex,
-			});
-	}
-}

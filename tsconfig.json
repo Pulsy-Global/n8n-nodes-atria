@@ -8,7 +8,7 @@
 		"lib": ["es2022"],
 		"declaration": false,
 		"sourceMap": false,
-		"strict": false,
+		"strict": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true

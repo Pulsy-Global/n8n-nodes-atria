@@ -31,8 +31,43 @@ docker exec n8n-atria-dev grep -o 'n8n-nodes-atria[a-zA-Z.]*' /tmp/nodes.json | 
 
 ## Guidelines
 
-- Keep API calls in `nodes/Atria/genericFunctions.ts` so that every resource shares the same request
-  wrapper (`X-API-KEY`, base URL handling, `{ items, totalCount }` unwrapping).
+- `nodes/Shared/lib/` is split by concern, not a grab-bag: `api-client.ts` (the `AtriaApiClient`
+  transport — the only place that calls `httpRequest` against Atria), `pagination.ts`
+  (`unwrapPaged`, `listAll`), `feed.dto.ts` (DTO mapping, incl. the `buildCreateFeedBody` builder
+  shared by the node's Feed › Create operation and the trigger), `list-search.ts`
+  (`makeListSearchHandler` — the skip/paginationToken loop every `methods.listSearch` needs),
+  `parameters.ts` (node-parameter parsing), `property-modes.ts` (UI mode config). Shared model
+  constants live in `nodes/Shared/constants.ts`.
+  Atria Cloud API calls for a model belong in the matching `nodes/Shared/services/{Model}.service.ts`,
+  which construct an `AtriaApiClient` from the n8n context — never call transport functions directly.
+  Every executable operation is a class in
+  `nodes/Atria/operations/{resource}/{operation}.operation.ts` registered in
+  `nodes/Atria/operations/index.ts`. The registry is typed against a union derived from
+  the resource/operation dropdown definitions (`RESOURCE_OPTIONS` and the per-resource
+  `*_OPERATIONS` lists, each `as const`), so a typo or a UI operation with no class — or a
+  class not surfaced in the UI — is a compile error, not a runtime surprise. To add an
+  operation: add a `*_OPERATIONS` entry, create the class, and register it; TypeScript
+  points at any of the three you missed. Node-specific concerns live in `{Node}/services/`
+  (the trigger's webhook lifecycle is `TriggerRegistrationService` + `WebhookService`),
+  UI property definitions in `{Node}/resources/`, constant values
+  in `{Node}/constants/{Node}.constants.ts`. Node classes are thin: description +
+  delegation only. Dependencies point down into `nodes/Shared/` — Shared
+  never imports from a node.
+- Typing is strict (`tsconfig.json` → `"strict": true`) and API shapes are real DTOs in
+  `nodes/Shared/lib/dtos.ts` — `FeedDto`, `OutputDto`, `LibraryDto`, `TagDto`, `NetworkDto` and the
+  write bodies (`CreateFeedDto`, `UpsertOutputDto`), plus the `AtriaPage<T>` envelope. Declare them
+  as **type aliases, not interfaces**: aliases get an implicit index signature, so a DTO drops
+  straight into `{ json: feed }` without casting to `IDataObject`. Service methods return DTOs
+  (never `Promise<any>`), operation `execute()` returns `Promise<INodeExecutionData[]>`, and the
+  listSearch/loadOptions mappers infer their item type from `makeListSearchHandler<T>`. The only
+  sanctioned untyped boundaries: `unwrapPaged` (parses the wire envelope once),
+  `getCredentials(...) as AtriaCredentials`, `NodeOperation.get()` / `FeedParamGetter` (n8n hands
+  UI parameters over as `any`), and `parseJsonParameter` — everything downstream of those is
+  checked. Do not add `as unknown as X` double casts; if one seems needed, the DTO is wrong.
+- Logic that both nodes need exists exactly once: the CreateFeedDto builder (`feed.dto.ts`), the
+  listSearch paging factory (`list-search.ts`) and the network loader (`NetworkService`, which
+  falls back to `NETWORK_FALLBACKS` when `GET /config/networks` is unavailable) are shared — do not
+  fork them per node.
 - Payload shapes must match Atria DTOs exactly: camelCase properties, enums serialized as string
   names, `startBlock`/`endBlock` as numbers on write (strings on read).
 - Every new operation needs a display name, a description and correct `displayOptions` so it only
@@ -52,9 +87,32 @@ secret, no token to rotate, and no OTP prompt.
 One-time setup (requires the package to exist on npm — `0.1.0` already does):
 
 1. npmjs.com → package `n8n-nodes-atria` → **Settings** → **Trusted Publisher** → add *GitHub Actions*;
-2. Owner `Pulsy-Global`, Repository `n8n-nodes-atria`, Workflow name `release.yml` (the file name,
-   must match exactly), Environment name — leave empty;
-3. The workflow needs `permissions: id-token: write` (already set).
+2. Organization `Pulsy-Global`, Repository `n8n-nodes-atria`, **Workflow filename** `release.yml`
+   (file name only, with extension, case-sensitive), Environment name — leave empty;
+3. **Allowed actions** — tick *direct publish* (`npm publish`). Connections created after
+   **2026-09-03** default to `npm stage publish` only, and a direct publish is then refused with
+   `403 OIDC permission denied for this action` — *after* provenance was signed, so it looks like
+   an identity problem while it is not;
+4. a connection **cannot be edited afterwards** — to change any field (including allowed actions),
+   delete it and create a new one. npm does not validate the configuration when you save it;
+5. the workflow needs `permissions: id-token: write` (already set) and npm ≥ 11.5.1 for the OIDC
+   exchange (≥ 11.15.0 for staged publishing) — the workflow pins npm explicitly.
+
+### Staged publishing (optional hardening)
+
+Keep the publisher stage-only and change the publish step to `npm stage publish --access public`.
+CI can only *submit* — reviewing and approving requires a human with 2FA, and those subcommands do
+not accept OIDC:
+
+```bash
+npm stage list n8n-nodes-atria
+npm stage view <stage-id>        # or: npm stage download <stage-id> to inspect the tarball
+npm stage approve <stage-id>     # prompts for a 2FA code; also possible on npmjs.com → Staged Packages
+```
+
+Then the recommended maximum-security posture: package → Settings → **Publishing access** →
+*Require two-factor authentication and disallow tokens*, and revoke every remaining publish token.
+This does not affect trusted publishing.
 
 Release checklist:
 

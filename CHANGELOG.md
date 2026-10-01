@@ -3,6 +3,29 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [0.1.2] - 2026-10-01
+
+### Fixed
+
+- Entity ids from the typed "By ID" parameter mode are now URL-encoded when interpolated into
+  API paths, so a value like `../../admin` (or one containing `/ ? #`) can no longer reshape
+  the request.
+- Exact-output/feed lookups (`findByName`, `findAttachedToOutput`) use a server-side OData
+  `$filter` instead of scanning only the first page client-side — on accounts with more
+  resources than the page size, trigger activation could create duplicate outputs or miss an
+  existing feed attachment. Deployments that reject `$filter` fall back to the previous
+  search/top query automatically.
+- The trigger's deferred registration retry loop is sequential; a slow probe+register attempt
+  could previously overlap with the next timer tick and register the output/feed twice.
+
+### Changed
+
+- Internals: layered architecture (shared per-model services, typed operation registry,
+  trigger lifecycle services) and TypeScript `strict` mode with real response DTOs replacing
+  pervasive `any` and double casts.
+- The action node's Network dropdown now falls back to the bundled network list when the API
+  is unreachable (previously trigger-only), and both nodes label entries with the environment id.
+
 ## [0.1.1] - 2026-09-29
 
 ### Changed

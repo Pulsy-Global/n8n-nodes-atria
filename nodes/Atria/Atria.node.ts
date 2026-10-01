@@ -2,25 +2,23 @@ import type {
 	IExecuteFunctions,
 	ILoadOptionsFunctions,
 	INodeExecutionData,
-	INodeListSearchResult,
 	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
-	IDataObject,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import { atriaApiRequest, unwrapPaged } from './genericFunctions';
-import { feedProperties, executeFeedOperation } from './resources/feed';
-import { outputProperties, executeOutputOperation } from './resources/output';
-import { libraryProperties, executeLibraryOperation } from './resources/library';
-
-const RESOURCE_OPTIONS = [
-	{ name: 'Feed', value: 'feed', description: 'Manage blockchain data feeds' },
-	{ name: 'Library', value: 'library', description: 'Browse deployable feed templates' },
-	{ name: 'Output', value: 'output', description: 'Manage webhook delivery outputs' },
-];
-
-const PAGE_SIZE = 20;
+import { feedProperties } from './resources/feed';
+import { outputProperties } from './resources/output';
+import { libraryProperties } from './resources/library';
+import { RESOURCE_OPTIONS } from './constants/Atria.constants';
+import { LOAD_OPTIONS_TOP } from '../Shared/constants';
+import { makeListSearchHandler } from '../Shared/lib/list-search';
+import { resolveOperation } from './operations';
+import { FeedService } from '../Shared/services/Feed.service';
+import { OutputService } from '../Shared/services/Output.service';
+import { LibraryService } from '../Shared/services/Library.service';
+import { TagService } from '../Shared/services/Tag.service';
+import { NetworkService } from '../Shared/services/Network.service';
 
 export class Atria implements INodeType {
 	description: INodeTypeDescription = {
@@ -41,7 +39,7 @@ export class Atria implements INodeType {
 				name: 'resource',
 				type: 'options',
 				noDataExpression: true,
-				options: RESOURCE_OPTIONS,
+				options: [...RESOURCE_OPTIONS],
 				default: 'feed',
 			},
 			...feedProperties,
@@ -52,125 +50,44 @@ export class Atria implements INodeType {
 
 	methods = {
 		listSearch: {
-			async feedSearchList(
-				this: ILoadOptionsFunctions,
-				filter?: string,
-				paginationToken?: string,
-			): Promise<INodeListSearchResult> {
-				const skip = Number(paginationToken) || 0;
-				const qs: IDataObject = { skip, top: PAGE_SIZE };
-				if (filter) qs.search = filter;
-				const response = await atriaApiRequest.call(this, { method: 'GET', endpoint: '/feeds', qs });
-				const { items, totalCount } = unwrapPaged(response);
-				const next = skip + items.length;
-				return {
-					results: items.map((f: any) => ({
-						name: `${f.name} (${f.status ?? 'unknown'})`,
-						value: f.id,
-						url: undefined,
-						hint: `network: ${f.networkId ?? '?'}`,
-					})),
-					paginationToken: next < totalCount ? String(next) : undefined,
-				};
-			},
-			async outputSearchList(
-				this: ILoadOptionsFunctions,
-				filter?: string,
-				paginationToken?: string,
-			): Promise<INodeListSearchResult> {
-				const skip = Number(paginationToken) || 0;
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/outputs',
-					qs: { skip, top: PAGE_SIZE },
-				});
-				const { items, totalCount } = unwrapPaged(response);
-				const next = skip + items.length;
-				return {
-					results: items.map((o: any) => ({
-						name: o.name,
-						value: o.id,
-						hint: o.config?.url,
-					})),
-					paginationToken: next < totalCount ? String(next) : undefined,
-				};
-			},
-			async librarySearchList(
-				this: ILoadOptionsFunctions,
-				filter?: string,
-				paginationToken?: string,
-			): Promise<INodeListSearchResult> {
-				const skip = Number(paginationToken) || 0;
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/libraries',
-					qs: { skip, top: PAGE_SIZE },
-				});
-				const { items, totalCount } = unwrapPaged(response);
-				const next = skip + items.length;
-				return {
-					results: items.map((l: any) => ({
-						name: l.name,
-						value: l.id,
-						hint: `${l.networkId ?? ''} • ${l.dataType ?? ''}`,
-					})),
-					paginationToken: next < totalCount ? String(next) : undefined,
-				};
-			},
-			async tagSearchList(
-				this: ILoadOptionsFunctions,
-				filter?: string,
-				paginationToken?: string,
-			): Promise<INodeListSearchResult> {
-				const skip = Number(paginationToken) || 0;
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/tags',
-					qs: { skip, top: PAGE_SIZE },
-				});
-				const { items, totalCount } = unwrapPaged(response);
-				const next = skip + items.length;
-				return {
-					results: items.map((t: any) => ({ name: t.name, value: t.id })),
-					paginationToken: next < totalCount ? String(next) : undefined,
-				};
-			},
+			feedSearchList: makeListSearchHandler(
+				(ctx, skip, top, filter) => new FeedService(ctx).searchPage(skip, top, filter),
+				(f) => ({
+					name: `${f.name} (${f.status ?? 'unknown'})`,
+					value: f.id,
+					hint: `network: ${f.networkId ?? '?'}`,
+				}),
+			),
+			// NOTE: output/library/tag search pre-date server-side filtering and pass no
+			// `search` param — the dialog filters the fetched page client-side.
+			outputSearchList: makeListSearchHandler(
+				(ctx, skip, top) => new OutputService(ctx).searchPage(skip, top),
+				(o) => ({ name: o.name, value: o.id, hint: o.config?.url }),
+			),
+			librarySearchList: makeListSearchHandler(
+				(ctx, skip, top) => new LibraryService(ctx).searchPage(skip, top),
+				(l) => ({
+					name: l.name,
+					value: l.id,
+					hint: `${l.networkId ?? ''} • ${l.dataType ?? ''}`,
+				}),
+			),
+			tagSearchList: makeListSearchHandler(
+				(ctx, skip, top) => new TagService(ctx).searchPage(skip, top),
+				(t) => ({ name: t.name, value: t.id }),
+			),
 		},
 		loadOptions: {
 			async networkLoader(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/config/networks',
-				});
-				const networks = response?.networks ?? [];
-				const results: INodePropertyOptions[] = [];
-				for (const network of networks) {
-					for (const env of network.environments ?? []) {
-						results.push({
-							name: `${network.title} — ${env.title}`,
-							value: env.id,
-						});
-					}
-				}
-				return results;
+				return new NetworkService(this).getEnvironmentOptions();
 			},
 			async outputLoader(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/outputs',
-					qs: { top: 200 },
-				});
-				const { items } = unwrapPaged(response);
-				return items.map((o: any) => ({ name: `${o.name} (${o.type})`, value: o.id }));
+				const { items } = await new OutputService(this).listTop(LOAD_OPTIONS_TOP);
+				return items.map((o) => ({ name: `${o.name} (${o.type})`, value: o.id }));
 			},
 			async tagLoader(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const response = await atriaApiRequest.call(this, {
-					method: 'GET',
-					endpoint: '/tags',
-					qs: { top: 200 },
-				});
-				const { items } = unwrapPaged(response);
-				return items.map((t: any) => ({ name: t.name, value: t.id }));
+				const { items } = await new TagService(this).listTop(LOAD_OPTIONS_TOP);
+				return items.map((t) => ({ name: t.name, value: t.id }));
 			},
 		},
 	};
@@ -182,22 +99,20 @@ export class Atria implements INodeType {
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				let output: INodeExecutionData[];
-				if (resource === 'feed') {
-					output = await executeFeedOperation.call(this, itemIndex);
-				} else if (resource === 'output') {
-					output = await executeOutputOperation.call(this, itemIndex);
-				} else if (resource === 'library') {
-					output = await executeLibraryOperation.call(this, itemIndex);
-				} else {
-					throw new NodeOperationError(this.getNode(), `Resource "${resource}" is not supported`, {
-						itemIndex,
-					});
+				const operation = this.getNodeParameter('operation', itemIndex) as string;
+				const Operation = resolveOperation(resource, operation);
+				if (!Operation) {
+					throw new NodeOperationError(
+						this.getNode(),
+						`Operation "${operation}" is not supported for resource "${resource}"`,
+						{ itemIndex },
+					);
 				}
+				const output = await new Operation(this, itemIndex).execute();
 				returnData.push(...output);
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ json: { error: error.message }, itemIndex });
+					returnData.push({ json: { error: (error as Error).message }, itemIndex });
 					continue;
 				}
 				throw error;

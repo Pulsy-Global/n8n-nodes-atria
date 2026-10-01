@@ -18,18 +18,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # No `registry-url` here: with Trusted Publishing there is no token to write into
-          # .npmrc, and omitting it also drops setup-node's deprecated `always-auth` entry
-          # (source of the "Unknown user config \"always-auth\"" warning). The default registry
-          # is https://registry.npmjs.org/ already.
+          # No `registry-url`: with Trusted Publishing there is no token to write into .npmrc,
+          # and omitting it also drops setup-node's deprecated `always-auth` entry (the source
+          # of the `Unknown user config "always-auth"` warning). The default registry already is
+          # https://registry.npmjs.org/.
           node-version: 24
 
-      # npm Trusted Publishing requires npm >= 11.5.1 (OIDC token exchange did not exist
-      # before 11.5). Node 24.0 shipped npm 11.3, so pin explicitly rather than trusting
-      # whatever the runner image provides.
+      # Trusted Publishing needs npm >= 11.5.1 (the OIDC exchange did not exist before 11.5) and
+      # staged publishing needs >= 11.15.0. Early Node 24 builds shipped npm 11.3, so pin
+      # explicitly instead of trusting the runner image.
       - name: Ensure npm supports trusted publishing
         run: |
-          npm install -g npm@^11.5.1
+          npm install -g npm@^11.15.0
           node --version
           npm --version
 
@@ -54,15 +54,47 @@ jobs:
             exit 1
           fi
 
-      # Authentication is npm Trusted Publishing: npm exchanges the GitHub Actions OIDC
-      # id-token for a short-lived publish token, so no NPM_TOKEN secret and no OTP prompt
-      # (granular tokens that bypass 2FA are being retired for direct publishing).
+      # Preflight: prove this run's OIDC identity is accepted by npm. npm's oidc() never throws —
+      # it logs the registry's real message at "verbose" level and publish then fails with a
+      # misleading ENEEDAUTH. `npm publish --dry-run` still performs the exchange and cannot
+      # upload anything, so run it here and fail with the actual text.
+      - name: Verify npm Trusted Publishing (OIDC)
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::No OIDC id-token available — the workflow needs 'permissions: id-token: write'."
+            exit 1
+          fi
+          OUT=$(npm publish --access public --dry-run --loglevel=verbose 2>&1 || true)
+          echo "$OUT" | grep -iE 'oidc|npm error|requires you to be logged in' || true
+          if echo "$OUT" | grep -qE 'requires you to be logged in|ENEEDAUTH'; then
+            echo "::error::npm did not recognise this run as a trusted publisher. The connection"
+            echo "::error::must be on package n8n-nodes-atria and match exactly:"
+            echo "::error::  organization=Pulsy-Global  repository=n8n-nodes-atria"
+            echo "::error::  workflow filename=release.yml  environment=<empty>"
+            exit 1
+          fi
+          echo "OIDC exchange accepted by the registry."
+
+      # Authentication is npm Trusted Publishing: npm exchanges the GitHub Actions OIDC id-token
+      # for a short-lived publish token, so there is no NPM_TOKEN secret and no OTP prompt.
       #
-      # One-time setup on npmjs.com -> package n8n-nodes-atria -> Settings -> Trusted Publisher:
-      #   Provider: GitHub Actions
-      #   Owner/organization: Pulsy-Global
-      #   Repository name:    n8n-nodes-atria
-      #   Workflow name:      release.yml     <- file name, must match exactly
-      #   Environment name:   <empty>
+      # One-time setup: npmjs.com -> package n8n-nodes-atria -> Settings -> Trusted Publisher ->
+      # GitHub Actions, with "Allowed actions" including DIRECT publish. Configurations created
+      # after 2026-09-03 default to `npm stage publish` only, and a direct publish is then refused
+      # with `403 OIDC permission denied for this action` *after* provenance has been signed.
+      # Connections cannot be edited — delete and re-create one to change its allowed actions.
       - name: Publish
-        run: npm publish --provenance --access public
+        # No --provenance flag: from a public repository with trusted publishing npm generates the
+        # attestation automatically, and stays correct if the repository ever goes private
+        # (an explicit --provenance would then fail with 422 instead of simply skipping it).
+        run: npm publish --access public
+
+      # The registry checks the publisher's allowed actions only on the final PUT, so the
+      # preflight above cannot see that failure. Spell out the likely cause instead of E403 alone.
+      - name: Explain a rejected publish
+        if: failure()
+        run: |
+          echo "::warning::403 'OIDC permission denied for this action' means the trusted publisher"
+          echo "::warning::is stage-only. Either allow direct publish on npmjs.com (delete the"
+          echo "::warning::connection and create a new one with that action), or change this step to"
+          echo "::warning::'npm stage publish --access public' and approve later with 2FA."
