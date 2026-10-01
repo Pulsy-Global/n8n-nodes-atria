@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Atria Trigger: "Create From Library" feed source.** With *Feed Source → Create From
+  Library* the trigger clones a feed library template (with `Filter Config` /
+  `Function Config` JSON parameters), starts the clone on activation and reuses it on later
+  activations; switching the selected template re-clones and pauses the superseded feed.
+  A feed created this way is still only paused, never deleted, on deactivation.
+
+### Changed
+
+- Community-node verification tooling: `npm run lint` / `npm run lint:fix` via
+  `n8n-node` (`@n8n/node-cli`), `npm run test` = build + lint, `eslint.config.mjs` with
+  n8n's official community-node rules.
+- All lint findings from `@n8n/scan-community-package` fixed: `peerDependencies`
+  (`n8n-workflow`), credential icon + "Test" endpoint, `NodeApiError`/`NodeOperationError`
+  wrapping, `sleep` instead of `setTimeout`, dynamic-option parameter naming
+  ("… Name or ID") descriptions, `NodeConnectionTypes.Main`, `usableAsTool` on the
+  action node.
+
 ## [0.1.2] - 2026-10-01
 
 ### Fixed

@@ -87,7 +87,7 @@ export const outputProperties: INodeProperties[] = [
 		],
 	},
 	{
-		displayName: 'Timeout (seconds)',
+		displayName: 'Timeout (Seconds)',
 		name: 'timeoutSeconds',
 		type: 'number',
 		displayOptions: { show: { resource: ['output'], operation: ['create', 'update'] } },
@@ -96,9 +96,10 @@ export const outputProperties: INodeProperties[] = [
 		description: 'Per-request delivery timeout (1–45 seconds)',
 	},
 	{
-		displayName: 'Tags',
+		displayName: 'Tag Names or IDs',
 		name: 'outputTagIds',
 		type: 'multiOptions',
+		description: 'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 		displayOptions: { show: { resource: ['output'], operation: ['create'] } },
 		typeOptions: { loadOptionsMethod: 'tagLoader' },
 		default: [],

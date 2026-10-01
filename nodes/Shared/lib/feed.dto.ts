@@ -1,10 +1,12 @@
+import type { IDataObject } from 'n8n-workflow';
 import type { CreateFeedDto, FeedDto } from './dtos';
 
 /**
- * Reads a create-feed parameter by DTO-shaped field name. `any` is deliberate:
+ * Reads a create-feed parameter by DTO-shaped field name. The `any` is deliberate:
  * this is the trigger's `getNodeParameter` boundary, the same choke-point the
  * action node's `NodeOperation.get()` documents.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FeedParamGetter = (field: string, fallback?: any) => any;
 
 /**
@@ -34,6 +36,36 @@ export function buildCreateFeedBody(
 		tagIds,
 		blockDelay: Number(get('blockDelay', 0)) || 0,
 	};
+}
+
+/**
+ * Builds the POST /feeds/library body from node parameters. Shared by the
+ * Atria node's Feed › Create From Library operation and the Atria Trigger's
+ * "library" feed source. JSON config parameters are opaque objects on the
+ * wire but may arrive as JSON strings from the UI, so each caller passes its
+ * own parser bound to the node/item context for good error messages.
+ */
+export function buildCreateFromLibraryBody(
+	get: FeedParamGetter,
+	outputIds: string[],
+	tagIds: string[],
+	parseJson: (raw: unknown, fieldName: string) => IDataObject,
+): IDataObject {
+	const feedLibraryId = String(get('feedLibraryId', '') ?? '');
+	const startBlock = Number(get('startBlock', 0));
+	const endBlock = Number(get('endBlock', 0));
+	const body: IDataObject = {
+		feedLibraryId,
+		name: get('name') || feedLibraryId,
+		errorHandling: get('errorHandling', 'StopOnError'),
+		filterConfig: parseJson(get('filterConfig'), 'filterConfig'),
+		functionConfig: parseJson(get('functionConfig'), 'functionConfig'),
+		outputIds,
+		tagIds,
+	};
+	if (startBlock > 0) body.startBlock = startBlock;
+	if (endBlock > 0) body.endBlock = endBlock;
+	return body;
 }
 
 /**

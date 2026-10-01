@@ -17,10 +17,11 @@ export abstract class NodeOperation implements IOperation {
 	) {}
 
 	/**
-	 * Reads a node parameter for this item. `any` here is deliberate: it is the
+	 * Reads a node parameter for this item. The `any` here is deliberate: it is the
 	 * single choke-point where untyped UI parameters enter the typed stack.
 	 * Everything downstream of `this.get(...) as SomeType` is checked.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	protected get(name: string, fallback?: any): any {
 		return this.ctx.getNodeParameter(name, this.itemIndex, fallback);
 	}

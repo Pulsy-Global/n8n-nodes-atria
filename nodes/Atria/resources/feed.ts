@@ -73,14 +73,14 @@ export const feedProperties: INodeProperties[] = [
 		default: '',
 	},
 	{
-		displayName: 'Network',
+		displayName: 'Network Name or ID',
 		name: 'networkId',
 		type: 'options',
 		required: true,
 		displayOptions: { show: { resource: ['feed'], operation: ['create', 'test'] } },
 		typeOptions: { loadOptionsMethod: 'networkLoader' },
 		default: '',
-		description: 'Blockchain network the feed reads from',
+		description: 'Blockchain network the feed reads from. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 	},
 	{
 		displayName: 'Data Type',
@@ -173,7 +173,7 @@ export const feedProperties: INodeProperties[] = [
 	},
 	// --- outputs / tags (shared by create variants and update) ---
 	{
-		displayName: 'Outputs',
+		displayName: 'Output Names or IDs',
 		name: 'outputIds',
 		type: 'multiOptions',
 		displayOptions: {
@@ -181,12 +181,13 @@ export const feedProperties: INodeProperties[] = [
 		},
 		typeOptions: { loadOptionsMethod: 'outputLoader' },
 		default: [],
-		description: 'Delivery outputs attached to the feed. Required for create operations.',
+		description: 'Delivery outputs attached to the feed. Required for create operations. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 	},
 	{
-		displayName: 'Tags',
+		displayName: 'Tag Names or IDs',
 		name: 'tagIds',
 		type: 'multiOptions',
+		description: 'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 		displayOptions: {
 			show: { resource: ['feed'], operation: ['create', 'createFromLibrary', 'update'] },
 		},
@@ -249,6 +250,7 @@ export const feedProperties: INodeProperties[] = [
 		displayName: 'Test Output IDs',
 		name: 'testOutputsIds',
 		type: 'multiOptions',
+		description: 'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 		displayOptions: { show: { resource: ['feed'], operation: ['test'], executeOutputs: [true] } },
 		typeOptions: { loadOptionsMethod: 'outputLoader' },
 		default: [],
@@ -259,9 +261,9 @@ export const feedProperties: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		displayOptions: { show: { resource: ['feed'], operation: ['getResults'] } },
-		default: 10,
+		default: 50,
 		typeOptions: { minValue: 1, maxValue: 500 },
-		description: 'How many recent results to fetch',
+		description: 'Max number of results to return',
 	},
 	// --- list options ---
 	{

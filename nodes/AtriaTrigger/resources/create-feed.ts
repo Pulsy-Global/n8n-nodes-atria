@@ -31,14 +31,14 @@ export const createFeedProperties: INodeProperties[] = [
 		default: '',
 	},
 	{
-		displayName: 'Network',
+		displayName: 'Network Name or ID',
 		name: 'createNetworkId',
 		type: 'options',
 		required: true,
 		displayOptions: { show: { feedSource: ['create'] } },
 		typeOptions: { loadOptionsMethod: 'networkLoader' },
 		default: '',
-		description: 'Blockchain network the feed reads from',
+		description: 'Blockchain network the feed reads from. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 	},
 	{
 		displayName: 'Data Type',

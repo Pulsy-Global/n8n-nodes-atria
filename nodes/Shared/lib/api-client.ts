@@ -4,8 +4,9 @@ import type {
 	ILoadOptionsFunctions,
 	IDataObject,
 	IHttpRequestMethods,
+	JsonObject,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 /** Anything that can execute an authenticated Atria API request. */
 export type AtriaContext = IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions;
@@ -91,7 +92,9 @@ export class AtriaApiClient {
 				response?: { statusCode?: number };
 			};
 			const status = httpStatusCode ?? statusCode ?? response?.statusCode;
-			if (status === undefined || status < 400 || status > 499) throw error;
+			if (status === undefined || status < 400 || status > 499) {
+				throw new NodeApiError(this.ctx.getNode(), error as JsonObject);
+			}
 			return this.request<T>({ ...options, qs: fallbackQs });
 		}
 	}

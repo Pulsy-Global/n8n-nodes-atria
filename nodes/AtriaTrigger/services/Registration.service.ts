@@ -2,9 +2,12 @@ import type { IDataObject, IHookFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 import {
 	buildCreateFeedBody,
+	buildCreateFromLibraryBody,
 	feedToUpdateBody,
 	type FeedParamGetter,
 } from '../../Shared/lib/feed.dto';
+import { parseJsonParameter } from '../../Shared/lib/parameters';
+import type { CreateFeedDto, FeedDto } from '../../Shared/lib/dtos';
 import { FeedService } from '../../Shared/services/Feed.service';
 import { OutputService } from '../../Shared/services/Output.service';
 import { WebhookService, type TriggerRegistrationState } from './Webhook.service';
@@ -41,14 +44,44 @@ export class TriggerRegistrationService {
 		return (options.outputName as string) || `n8n ${this.nodeName} - ${this.workflowName}`.slice(0, 255);
 	}
 
-	private usesExistingFeed(): boolean {
-		return (this.hook.getNodeParameter('feedSource', 'existing') as string) !== 'create';
+	private feedSourceMode(): 'existing' | 'create' | 'library' {
+		const value = this.hook.getNodeParameter('feedSource', 'existing') as string;
+		if (value === 'library' || value === 'create') return value;
+		return 'existing';
 	}
 
-	/** Maps shared builder field names onto the trigger's `create`-prefixed parameters. */
-	private createParamGetter(): FeedParamGetter {
+	/** Maps shared builder field names onto the trigger's prefixed parameters. */
+	private fieldGetter(prefix: string): FeedParamGetter {
 		return (field, fallback) =>
-			this.hook.getNodeParameter(`create${field.charAt(0).toUpperCase()}${field.slice(1)}`, fallback);
+			this.hook.getNodeParameter(
+				`${prefix}${field.charAt(0).toUpperCase()}${field.slice(1)}`,
+				fallback,
+			);
+	}
+
+	/**
+	 * Per-mode create body; `undefined` in existing-feed mode. `IDataObject` is
+	 * the union of the two write shapes — callers cast per mode.
+	 */
+	private buildFeedBody(
+		mode: 'existing' | 'create' | 'library',
+		outputIds: string[],
+		feed: FeedDto | undefined,
+	): IDataObject | undefined {
+		if (mode === 'create') {
+			return buildCreateFeedBody(this.fieldGetter('create'), outputIds, feed?.tagIds ?? []);
+		}
+		if (mode === 'library') {
+			const parse = (raw: unknown, fieldName: string) =>
+				parseJsonParameter(this.hook.getNode(), 0, raw, fieldName);
+			return buildCreateFromLibraryBody(
+				this.fieldGetter('lib'),
+				outputIds,
+				feed?.tagIds ?? [],
+				parse,
+			);
+		}
+		return undefined;
 	}
 
 	async checkExists(): Promise<boolean> {
@@ -181,7 +214,8 @@ export class TriggerRegistrationService {
 		const staticData = this.hook.getWorkflowStaticData('global');
 		const { state, manualRun, deliveryUrl } = ctx;
 
-		const createFeed = !this.usesExistingFeed();
+		const mode = this.feedSourceMode();
+		const createFeed = mode !== 'existing';
 		const configuredFeedId = createFeed
 			? undefined
 			: (this.hook.getNodeParameter('feedId') as string);
@@ -219,23 +253,56 @@ export class TriggerRegistrationService {
 
 		// The output we just created/updated is merged into whatever the feed already had.
 		const outputIds = Array.from(new Set([...(feed?.outputIds ?? []), outputId]));
-		const body = createFeed
-			? buildCreateFeedBody(this.createParamGetter(), outputIds, feed?.tagIds ?? [])
-			: undefined;
-		if (createFeed && body && !body.networkId && !feed) {
+		const body = this.buildFeedBody(mode, outputIds, feed);
+
+		if (mode === 'create' && body && !body.networkId && !feed) {
 			throw new NodeOperationError(this.hook.getNode(), 'No network selected for the new feed');
+		}
+		if (mode === 'library' && !body?.feedLibraryId) {
+			throw new NodeOperationError(this.hook.getNode(), 'No library template selected');
 		}
 
 		if (createFeed && body) {
-			if (feed) {
-				await this.feeds.update(feed.id, body);
-				targetFeedId = feed.id;
+			if (mode === 'library') {
+				// Clone once, reuse on later activations; re-clone only when the
+				// selected template changed. Code-style config sync does not apply
+				// to library feeds (their parameters live in filter/function config).
+				const templateChanged =
+					Boolean(state?.createdLibraryId) &&
+					state?.createdLibraryId !== body.feedLibraryId;
+				if (feed && !templateChanged) {
+					if (!(feed.outputIds ?? []).includes(outputId)) {
+						await this.feeds.updateFromDto(feed, { outputIds });
+					}
+					targetFeedId = feed.id;
+				} else {
+					// Template switched: the previous self-created feed would keep
+					// running with our output attached — pause it before cloning anew.
+					if (createdFeedId && templateChanged) {
+						try {
+							await this.feeds.pauseIfActive(createdFeedId);
+						} catch (error) {
+							this.hook.logger.warn?.('Atria Trigger: failed to pause the superseded feed', {
+								error: (error as Error).message,
+							});
+						}
+					}
+					const created = await this.feeds.createFromLibrary(body as IDataObject);
+					targetFeedId = created.id;
+				}
+				await this.feeds.ensureStarted(targetFeedId!);
+				createdFeedId = targetFeedId;
 			} else {
-				const created = await this.feeds.create(body);
-				targetFeedId = created.id;
+				if (feed) {
+					await this.feeds.update(feed.id, body as CreateFeedDto);
+					targetFeedId = feed.id;
+				} else {
+					const created = await this.feeds.create(body as CreateFeedDto);
+					targetFeedId = created.id;
+				}
+				await this.feeds.ensureStarted(targetFeedId!);
+				createdFeedId = targetFeedId;
 			}
-			createdFeedId = targetFeedId;
-			await this.feeds.ensureStarted(targetFeedId);
 		} else {
 			const currentOutputIds = feed?.outputIds ?? [];
 			if (!currentOutputIds.includes(outputId)) {
@@ -252,6 +319,7 @@ export class TriggerRegistrationService {
 		this.webhook.setRegistrationState(staticData, this.nodeName, {
 			feedId: targetFeedId,
 			createdFeedId: createFeed ? createdFeedId : undefined,
+			createdLibraryId: mode === 'library' ? (body?.feedLibraryId as string) : undefined,
 			outputId,
 			url: deliveryUrl,
 			createdInManualRun: manualRun,

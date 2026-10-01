@@ -14,8 +14,7 @@ export const triggerOptionsProperties: INodeProperties[] = [
 				name: 'outputName',
 				type: 'string',
 				default: '',
-				description:
-					'Name of the webhook output created for this workflow. Defaults to "n8n <node name> - <workflow name>".',
+				description: 'Name of the webhook output created for this workflow. Defaults to "n8n &lt;node name&gt; - &lt;workflow name&gt;".',
 			},
 			{
 				displayName: 'Delivery URL',

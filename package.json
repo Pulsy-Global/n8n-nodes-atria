@@ -12,7 +12,8 @@
 	"license": "MIT",
 	"homepage": "https://github.com/Pulsy-Global/n8n-nodes-atria",
 	"author": {
-		"name": "Pulsy Labs LLC"
+		"name": "Pulsy Labs LLC",
+		"email": "savva@pulsy.app"
 	},
 	"repository": {
 		"type": "git",
@@ -25,6 +26,9 @@
 	"scripts": {
 		"build": "rimraf dist && tsc && node scripts/postbuild.mjs",
 		"dev": "tsc --watch",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"test": "npm run build && npm run lint",
 		"prepublishOnly": "npm run build"
 	},
 	"files": [
@@ -34,6 +38,7 @@
 	],
 	"n8n": {
 		"n8nNodesApiVersion": 1,
+		"strict": true,
 		"credentials": [
 			"dist/credentials/AtriaApi.credentials.js"
 		],
@@ -43,9 +48,13 @@
 		]
 	},
 	"devDependencies": {
+		"@n8n/node-cli": "^0.50.4",
 		"@types/node": "^22.10.0",
 		"n8n-workflow": "^2.16.0",
 		"rimraf": "^6.0.1",
 		"typescript": "~5.7.2"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
 	}
 }

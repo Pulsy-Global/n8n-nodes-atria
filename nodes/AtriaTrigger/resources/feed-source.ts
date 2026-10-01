@@ -4,8 +4,7 @@ import { searchModes } from '../../Shared/lib/property-modes';
 /** Activation notice + feed selection for the "existing feed" mode. */
 export const feedSourceProperties: INodeProperties[] = [
 	{
-		displayName:
-			'On activation this node creates a webhook output and attaches it to the selected feed. "Feed Source › Create new feed" additionally creates that feed and starts it; on deactivation the output is removed and a self-created feed is paused (never deleted). Requires an API key with feeds.manage and outputs.manage. Manual ("Listen for test event") executions register nothing in Atria unless a "Delivery URL" is set — leave it empty and post your own payload to the test URL to inspect the JSON shape.',
+		displayName: 'On Activation This Node Creates a Webhook Output and Attaches It to the Selected Feed. "Feed Source › Create New Feed" Additionally Creates that Feed and Starts It; "Feed Source › Create From Library" Clones a Library Template Instead. on Deactivation the Output Is Removed and a Self-Created Feed Is Paused (Never Deleted). Requires an API Key with feeds.manage and outputs.manage. Manual ("Listen for Test Event") Executions Register Nothing in Atria Unless a "Delivery URL" Is Set — Leave It Empty and Post Your Own Payload to the Test URL to Inspect the JSON Shape.',
 		name: 'notice',
 		type: 'callout',
 		default: '',
@@ -24,6 +23,11 @@ export const feedSourceProperties: INodeProperties[] = [
 				name: 'Create New Feed',
 				value: 'create',
 				description: 'Create a custom feed from code and start it on activation',
+			},
+			{
+				name: 'Create From Library',
+				value: 'library',
+				description: 'Clone a feed library template and start it on activation',
 			},
 		],
 		default: 'existing',

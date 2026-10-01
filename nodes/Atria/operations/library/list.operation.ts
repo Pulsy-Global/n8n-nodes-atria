@@ -1,4 +1,4 @@
-import type { INodeExecutionData, IDataObject } from 'n8n-workflow';
+import type { INodeExecutionData } from 'n8n-workflow';
 import { NodeOperation } from '../ioperation';
 import { LibraryService } from '../../../Shared/services/Library.service';
 

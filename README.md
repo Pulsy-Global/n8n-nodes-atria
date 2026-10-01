@@ -20,6 +20,14 @@ extract specific data from blockchain blocks and stream it to your chosen destin
 
 Starts the workflow whenever the selected feed delivers a new result.
 
+Three **Feed Source** modes:
+
+- *Existing Feed* — attach to a feed you already have.
+- *Create New Feed* — create a custom-code feed (filter/function JS) and start it on activation.
+- *Create From Library* — clone a feed library template (with `filterConfig`/`functionConfig`
+  parameters) and start it on activation. The clone is created once and reused on later
+  activations; changing the selected template creates a new clone and pauses the old one.
+
 On **activation** the node automatically:
 
 1. creates a dedicated webhook output pointing at the workflow's production webhook URL;
@@ -57,8 +65,9 @@ Enable *Options → Include Delivery Headers* to also expose the `X-Atria-Feed-I
 
 ## Quick start: "alert me on big USDT transfers"
 
-1. Add the **Atria Trigger** node and pick (or create) a feed — e.g. deploy the *ERC-20 large
-   transfers* template with **Atria → Feed → Create From Library** and attach any placeholder output.
+1. Add the **Atria Trigger** node and set **Feed Source → Create From Library** — e.g. the
+   *ERC-20 large transfers* template (fill in its Filter/Function Config; see the **Library →
+   Get** operation for the parameter shape). Or pick an existing feed / write custom code.
 2. Activate the workflow — the node wires a webhook output onto the feed for you.
 3. Connect the trigger to Slack / Telegram / HTTP Request / whatever you like.
 

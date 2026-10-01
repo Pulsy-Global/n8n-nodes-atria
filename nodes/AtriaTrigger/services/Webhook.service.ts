@@ -1,5 +1,5 @@
 import type { IDataObject, IHookFunctions } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeOperationError, sleep } from 'n8n-workflow';
 import {
 	REGISTRATION_MAX_ATTEMPTS,
 	REGISTRATION_RETRY_INTERVAL_MS,
@@ -7,14 +7,13 @@ import {
 	TRIGGER_STATE_KEY_PREFIX,
 } from '../constants/AtriaTrigger.constants';
 
-/** Plain promise-based wait for the sequential registration retry loop. */
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
 export interface TriggerRegistrationState {
 	/** Feed this node is attached to. For self-created feeds equals `createdFeedId`. */
 	feedId?: string;
 	/** Set when the trigger itself created the feed; reused on the next activation. */
 	createdFeedId?: string;
+	/** Library template the self-created feed was cloned from ("library" mode). */
+	createdLibraryId?: string;
 	outputId?: string;
 	previousOutputIds?: string[];
 	url?: string;
@@ -143,7 +142,7 @@ export class WebhookService {
 				});
 				return;
 			}
-			if (attempt < REGISTRATION_MAX_ATTEMPTS - 1) await delay(REGISTRATION_RETRY_INTERVAL_MS);
+			if (attempt < REGISTRATION_MAX_ATTEMPTS - 1) await sleep(REGISTRATION_RETRY_INTERVAL_MS);
 		}
 		this.hook.logger.warn?.(
 			'Atria Trigger: webhook route never became available — Atria registration skipped. Publish the workflow again to retry.',

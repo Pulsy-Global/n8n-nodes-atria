@@ -6,7 +6,7 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { feedProperties } from './resources/feed';
 import { outputProperties } from './resources/output';
 import { libraryProperties } from './resources/library';
@@ -24,14 +24,14 @@ export class Atria implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Atria',
 		name: 'atria',
-		icon: 'file:Atria.svg',
+		icon: { light: 'file:Atria.svg', dark: 'file:Atria.svg' },
 		group: ['transform', 'output'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Deploy and manage Atria blockchain data feeds and webhook outputs',
 		defaults: { name: 'Atria' },
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'atriaApi' }],
 		properties: [
 			{
@@ -46,6 +46,7 @@ export class Atria implements INodeType {
 			...outputProperties,
 			...libraryProperties,
 		],
+		usableAsTool: true,
 	};
 
 	methods = {
@@ -115,7 +116,7 @@ export class Atria implements INodeType {
 					returnData.push({ json: { error: (error as Error).message }, itemIndex });
 					continue;
 				}
-				throw error;
+				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex });
 			}
 		}
 

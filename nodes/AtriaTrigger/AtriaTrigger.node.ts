@@ -9,13 +9,16 @@ import type {
 	IWebhookFunctions,
 	IWebhookResponseData,
 } from 'n8n-workflow';
+import { NodeConnectionTypes } from 'n8n-workflow';
 import { makeListSearchHandler } from '../Shared/lib/list-search';
 import { PROBE_HEADER } from './constants/AtriaTrigger.constants';
 import { FeedService } from '../Shared/services/Feed.service';
+import { LibraryService } from '../Shared/services/Library.service';
 import { NetworkService } from '../Shared/services/Network.service';
 import { TriggerRegistrationService } from './services/Registration.service';
 import { feedSourceProperties } from './resources/feed-source';
 import { createFeedProperties } from './resources/create-feed';
+import { createFromLibraryProperties } from './resources/create-from-library';
 import { triggerOptionsProperties } from './resources/options';
 
 /**
@@ -28,13 +31,15 @@ export class AtriaTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Atria Trigger',
 		name: 'atriaTrigger',
-		icon: 'file:AtriaTrigger.svg',
+		icon: { light: 'file:AtriaTrigger.svg', dark: 'file:AtriaTrigger.svg' },
 		group: ['trigger'],
 		version: 1,
 		description: 'Starts the workflow when an Atria feed delivers new blockchain results',
+		subtitle:
+			'={{ $parameter["feedSource"] === "create" ? "Create new feed" : $parameter["feedSource"] === "library" ? "From library" : "Existing feed" }}',
 		defaults: { name: 'Atria Trigger' },
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'atriaApi' }],
 		webhooks: [
 			{
@@ -49,6 +54,7 @@ export class AtriaTrigger implements INodeType {
 		properties: [
 			...feedSourceProperties,
 			...createFeedProperties,
+			...createFromLibraryProperties,
 			...triggerOptionsProperties,
 		],
 	};
@@ -58,6 +64,14 @@ export class AtriaTrigger implements INodeType {
 			feedSearchList: makeListSearchHandler(
 				(ctx, skip, top, filter) => new FeedService(ctx).searchPage(skip, top, filter),
 				(f) => ({ name: `${f.name} (${f.status ?? 'unknown'})`, value: f.id }),
+			),
+			librarySearchList: makeListSearchHandler(
+				(ctx, skip, top) => new LibraryService(ctx).searchPage(skip, top),
+				(l) => ({
+					name: l.name,
+					value: l.id,
+					hint: `${l.networkId ?? ''} • ${l.dataType ?? ''}`,
+				}),
 			),
 		},
 		loadOptions: {

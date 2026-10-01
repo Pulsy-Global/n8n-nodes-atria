@@ -1,0 +1,178 @@
+{
+	"name": "Atria community nodes demo",
+	"nodes": [
+		{
+			"parameters": {},
+			"id": "b3e1c9f2-7f56-4a1a-9d3e-1f8e1a2c3d4e",
+			"name": "When clicking \"Execute workflow\"",
+			"type": "n8n-nodes-base.manualTrigger",
+			"typeVersion": 1,
+			"position": [-560, -80]
+		},
+		{
+			"parameters": {
+				"resource": "feed",
+				"operation": "list",
+				"returnAll": false,
+				"limit": 10
+			},
+			"id": "c4d2a1e6-8b67-4b2b-8e4f-2a9f1b3c4d5e",
+			"name": "Atria — List feeds",
+			"type": "n8n-nodes-atria.atria",
+			"typeVersion": 1,
+			"position": [-320, -80],
+			"credentials": {
+				"atriaApi": {
+					"id": "REPLACE_WITH_CREDENTIAL_ID",
+					"name": "Atria API"
+				}
+			}
+		},
+		{
+			"parameters": {
+				"feedSource": "library",
+				"libFeedLibraryId": "REPLACE_WITH_LIBRARY_TEMPLATE_ID",
+				"libName": "n8n demo feed",
+				"libFilterConfig": "{}",
+				"libFunctionConfig": "{}"
+			},
+			"id": "d5e3b2f7-9c78-4c3c-9f50-3ba2c4d5e6f7",
+			"name": "Atria Trigger",
+			"type": "n8n-nodes-atria.atriaTrigger",
+			"typeVersion": 1,
+			"position": [-560, 220],
+			"credentials": {
+				"atriaApi": {
+					"id": "REPLACE_WITH_CREDENTIAL_ID",
+					"name": "Atria API"
+				}
+			},
+			"webhookId": "e6f4c3a8-0d89-4d4d-a061-4cb3d5e6f7a8"
+		},
+		{
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f7a5d4b9-1e90-4e5e-b172-5dc4e6f7a8b9",
+							"name": "receivedAt",
+							"value": "={{ $now.toISO() }}",
+							"type": "string"
+						},
+						{
+							"id": "a8b6e5ca-2fa1-4f6f-c283-6ed5f7a8b9c0",
+							"name": "data",
+							"value": "={{ $json.data }}",
+							"type": "object"
+						},
+						{
+							"id": "c9d7f6eb-40b2-4a3b-8e1f-2a3b4c5d6e7f",
+							"name": "blockNumber",
+							"value": "={{ $json.blockNumber }}",
+							"type": "string"
+						}
+					]
+				},
+				"options": {}
+			},
+			"id": "b9c7f6db-30b2-4070-d394-7fe608a9c0d1",
+			"name": "Normalize feed result",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [-320, 220]
+		},
+		{
+			"parameters": {
+				"rule": {
+					"interval": [
+						{
+							"field": "minutes"
+						}
+					]
+				}
+			},
+			"id": "c0d8a7ec-41c3-4181-e4a5-80f719bad1e2",
+			"name": "Poll results every 5 min",
+			"type": "n8n-nodes-base.scheduleTrigger",
+			"typeVersion": 1.2,
+			"position": [-560, 480]
+		},
+		{
+			"parameters": {
+				"resource": "feed",
+				"operation": "getResults",
+				"feedId": "REPLACE_WITH_FEED_ID"
+			},
+			"id": "d1e9b8fd-52d4-4292-f5b6-91a82cabe2f3",
+			"name": "Atria — Get results",
+			"type": "n8n-nodes-atria.atria",
+			"typeVersion": 1,
+			"position": [-320, 480],
+			"credentials": {
+				"atriaApi": {
+					"id": "REPLACE_WITH_CREDENTIAL_ID",
+					"name": "Atria API"
+				}
+			}
+		},
+		{
+			"parameters": {},
+			"id": "e2fac90e-63e5-43a3-06c7-a2b93dbcf304",
+			"name": "No Operation, do nothing",
+			"type": "n8n-nodes-base.noOp",
+			"typeVersion": 1,
+			"position": [-80, 220]
+		}
+	],
+	"connections": {
+		"When clicking \"Execute workflow\"": {
+			"main": [
+				[
+					{
+						"node": "Atria — List feeds",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Atria Trigger": {
+			"main": [
+				[
+					{
+						"node": "Normalize feed result",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Normalize feed result": {
+			"main": [
+				[
+					{
+						"node": "No Operation, do nothing",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Poll results every 5 min": {
+			"main": [
+				[
+					{
+						"node": "Atria — Get results",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"settings": {
+		"executionOrder": "v1"
+	},
+	"pinData": {},
+	"active": false
+}

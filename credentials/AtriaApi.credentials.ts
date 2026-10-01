@@ -1,9 +1,27 @@
-import type { ICredentialType, INodeProperties } from 'n8n-workflow';
+import type {
+	ICredentialTestRequest,
+	ICredentialType,
+	INodeProperties,
+} from 'n8n-workflow';
 
 export class AtriaApi implements ICredentialType {
 	name = 'atriaApi';
 
 	displayName = 'Atria API';
+
+	icon = 'file:AtriaApi.svg' as const;
+
+	/**
+	 * "Test" button in the credential modal: a cheap authenticated read
+	 * (`GET /feeds` one item) that validates key + base URL together.
+	 */
+	test: ICredentialTestRequest = {
+		request: {
+			baseURL: '={{$credentials.baseUrl}}',
+			url: '/feeds?$top=1',
+			headers: { 'X-API-KEY': '={{$credentials.apiKey}}' },
+		},
+	};
 
 	documentationUrl = 'https://github.com/Pulsy-Global/n8n-nodes-atria';
 
