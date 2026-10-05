@@ -1,13 +1,6 @@
 import type { IDataObject, IHookFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import {
-	buildCreateFeedBody,
-	buildCreateFromLibraryBody,
-	feedToUpdateBody,
-	type FeedParamGetter,
-} from '../../Shared/lib/feed.dto';
-import { parseJsonParameter } from '../../Shared/lib/parameters';
-import type { CreateFeedDto, FeedDto } from '../../Shared/lib/dtos';
+import { feedToUpdateBody } from '../../Shared/lib/feed.dto';
 import { FeedService } from '../../Shared/services/Feed.service';
 import { OutputService } from '../../Shared/services/Output.service';
 import { WebhookService, type TriggerRegistrationState } from './Webhook.service';
@@ -15,9 +8,9 @@ import { WebhookService, type TriggerRegistrationState } from './Webhook.service
 /**
  * Webhook-lifecycle orchestration for the Atria Trigger: the bodies behind the
  * node's `webhookMethods` (checkExists / create / delete). On activation the
- * node attaches itself to an Atria feed — with "Feed Source › Create new feed"
- * it also creates and starts that feed. On deactivation the output is detached
- * and deleted; a self-created feed is paused but kept.
+ * node creates a webhook output and attaches it to the selected existing feed.
+ * On deactivation the output is detached from the feed and deleted. The feed
+ * itself is never created, started or paused from here.
  */
 export class TriggerRegistrationService {
 	private readonly webhook: WebhookService;
@@ -41,47 +34,9 @@ export class TriggerRegistrationService {
 	/** The output is identified by name so retried registrations and teardown find it. */
 	private resolveOutputName(): string {
 		const options = (this.hook.getNodeParameter('options', {}) as IDataObject) ?? {};
-		return (options.outputName as string) || `n8n ${this.nodeName} - ${this.workflowName}`.slice(0, 255);
-	}
-
-	private feedSourceMode(): 'existing' | 'create' | 'library' {
-		const value = this.hook.getNodeParameter('feedSource', 'existing') as string;
-		if (value === 'library' || value === 'create') return value;
-		return 'existing';
-	}
-
-	/** Maps shared builder field names onto the trigger's prefixed parameters. */
-	private fieldGetter(prefix: string): FeedParamGetter {
-		return (field, fallback) =>
-			this.hook.getNodeParameter(
-				`${prefix}${field.charAt(0).toUpperCase()}${field.slice(1)}`,
-				fallback,
-			);
-	}
-
-	/**
-	 * Per-mode create body; `undefined` in existing-feed mode. `IDataObject` is
-	 * the union of the two write shapes — callers cast per mode.
-	 */
-	private buildFeedBody(
-		mode: 'existing' | 'create' | 'library',
-		outputIds: string[],
-		feed: FeedDto | undefined,
-	): IDataObject | undefined {
-		if (mode === 'create') {
-			return buildCreateFeedBody(this.fieldGetter('create'), outputIds, feed?.tagIds ?? []);
-		}
-		if (mode === 'library') {
-			const parse = (raw: unknown, fieldName: string) =>
-				parseJsonParameter(this.hook.getNode(), 0, raw, fieldName);
-			return buildCreateFromLibraryBody(
-				this.fieldGetter('lib'),
-				outputIds,
-				feed?.tagIds ?? [],
-				parse,
-			);
-		}
-		return undefined;
+		return (
+			(options.outputName as string) || `n8n ${this.nodeName} - ${this.workflowName}`.slice(0, 255)
+		);
 	}
 
 	async checkExists(): Promise<boolean> {
@@ -161,15 +116,14 @@ export class TriggerRegistrationService {
 		// A manual execution must not tear down the registration of the active workflow
 		if (this.webhook.isManualRun() && !state.createdInManualRun) return true;
 
-		let createdFeedId = state.createdFeedId;
+		let feedId = state.feedId;
 		const feed = await this.feeds.findAttachedToOutput(outputId);
-		const remaining: string[] = [];
 
 		if (feed) {
-			remaining.push(...(feed.outputIds ?? []).filter((id) => id !== outputId));
+			feedId = feed.id;
+			const remaining = (feed.outputIds ?? []).filter((id) => id !== outputId);
 			try {
 				await this.feeds.updateFromDto(feed, { outputIds: remaining });
-				if (!createdFeedId) createdFeedId = feed.id;
 			} catch (error) {
 				this.hook.logger.warn?.('Atria Trigger: failed to detach webhook output from feed', {
 					error: (error as Error).message,
@@ -183,28 +137,13 @@ export class TriggerRegistrationService {
 			/* already gone */
 		}
 
-		// A self-created feed is paused, never deleted — the user keeps the results and tags
-		if (createdFeedId) {
-			try {
-				await this.feeds.pauseIfActive(createdFeedId);
-			} catch (error) {
-				this.hook.logger.warn?.('Atria Trigger: failed to pause the feed', {
-					error: (error as Error).message,
-				});
-			}
-		}
-
-		this.webhook.setRegistrationState(staticData, this.nodeName, {
-			feedId: feed?.id,
-			createdFeedId,
-			previousOutputIds: remaining,
-		});
+		this.webhook.setRegistrationState(staticData, this.nodeName, { feedId });
 		return true;
 	}
 
 	/**
-	 * Creates (or reuses) the webhook output, attaches it to the feed, and — in
-	 * "Create new feed" mode — creates and starts that feed.
+	 * Creates (or reuses) the webhook output and attaches it to the existing
+	 * feed selected in the node parameters.
 	 */
 	private async registerAtria(ctx: {
 		state?: TriggerRegistrationState;
@@ -214,13 +153,12 @@ export class TriggerRegistrationService {
 		const staticData = this.hook.getWorkflowStaticData('global');
 		const { state, manualRun, deliveryUrl } = ctx;
 
-		const mode = this.feedSourceMode();
-		const createFeed = mode !== 'existing';
-		const configuredFeedId = createFeed
-			? undefined
-			: (this.hook.getNodeParameter('feedId') as string);
-		if (!createFeed && !configuredFeedId) {
-			throw new NodeOperationError(this.hook.getNode(), 'No feed selected');
+		const feedId = this.hook.getNodeParameter('feedId') as string;
+		if (!feedId) {
+			throw new NodeOperationError(
+				this.hook.getNode(),
+				'No feed selected. Pick an existing feed (or paste its UUID) in the node parameters.',
+			);
 		}
 
 		const outputName = this.resolveOutputName();
@@ -243,83 +181,26 @@ export class TriggerRegistrationService {
 			});
 		}
 
-		// 2. the feed to deliver from
-		let createdFeedId = state?.createdFeedId;
-		let targetFeedId = createFeed ? createdFeedId : configuredFeedId;
-		let feed = targetFeedId
-			? await this.feeds.getById(targetFeedId).catch(() => undefined)
-			: undefined;
-		if (createFeed && !feed) feed = await this.feeds.findAttachedToOutput(outputId);
-
-		// The output we just created/updated is merged into whatever the feed already had.
-		const outputIds = Array.from(new Set([...(feed?.outputIds ?? []), outputId]));
-		const body = this.buildFeedBody(mode, outputIds, feed);
-
-		if (mode === 'create' && body && !body.networkId && !feed) {
-			throw new NodeOperationError(this.hook.getNode(), 'No network selected for the new feed');
+		// 2. attach the output to the feed, preserving whatever it already had
+		const feed = await this.feeds.getById(feedId).catch(() => undefined);
+		if (!feed) {
+			throw new NodeOperationError(
+				this.hook.getNode(),
+				`Feed ${feedId} not found. Create it in Atria first, then attach this trigger to it.`,
+			);
 		}
-		if (mode === 'library' && !body?.feedLibraryId) {
-			throw new NodeOperationError(this.hook.getNode(), 'No library template selected');
-		}
-
-		if (createFeed && body) {
-			if (mode === 'library') {
-				// Clone once, reuse on later activations; re-clone only when the
-				// selected template changed. Code-style config sync does not apply
-				// to library feeds (their parameters live in filter/function config).
-				const templateChanged =
-					Boolean(state?.createdLibraryId) &&
-					state?.createdLibraryId !== body.feedLibraryId;
-				if (feed && !templateChanged) {
-					if (!(feed.outputIds ?? []).includes(outputId)) {
-						await this.feeds.updateFromDto(feed, { outputIds });
-					}
-					targetFeedId = feed.id;
-				} else {
-					// Template switched: the previous self-created feed would keep
-					// running with our output attached — pause it before cloning anew.
-					if (createdFeedId && templateChanged) {
-						try {
-							await this.feeds.pauseIfActive(createdFeedId);
-						} catch (error) {
-							this.hook.logger.warn?.('Atria Trigger: failed to pause the superseded feed', {
-								error: (error as Error).message,
-							});
-						}
-					}
-					const created = await this.feeds.createFromLibrary(body as IDataObject);
-					targetFeedId = created.id;
-				}
-				await this.feeds.ensureStarted(targetFeedId!);
-				createdFeedId = targetFeedId;
-			} else {
-				if (feed) {
-					await this.feeds.update(feed.id, body as CreateFeedDto);
-					targetFeedId = feed.id;
-				} else {
-					const created = await this.feeds.create(body as CreateFeedDto);
-					targetFeedId = created.id;
-				}
-				await this.feeds.ensureStarted(targetFeedId!);
-				createdFeedId = targetFeedId;
-			}
-		} else {
-			const currentOutputIds = feed?.outputIds ?? [];
-			if (!currentOutputIds.includes(outputId)) {
-				await this.feeds.update(
-					// existing-feed mode: validated non-empty above ("No feed selected")
-					targetFeedId!,
-					feedToUpdateBody(feed!, {
-						outputIds: Array.from(new Set([...currentOutputIds, outputId])),
-					}),
-				);
-			}
+		const currentOutputIds = feed.outputIds ?? [];
+		if (!currentOutputIds.includes(outputId)) {
+			await this.feeds.update(
+				feed.id,
+				feedToUpdateBody(feed, {
+					outputIds: Array.from(new Set([...currentOutputIds, outputId])),
+				}),
+			);
 		}
 
 		this.webhook.setRegistrationState(staticData, this.nodeName, {
-			feedId: targetFeedId,
-			createdFeedId: createFeed ? createdFeedId : undefined,
-			createdLibraryId: mode === 'library' ? (body?.feedLibraryId as string) : undefined,
+			feedId: feed.id,
 			outputId,
 			url: deliveryUrl,
 			createdInManualRun: manualRun,

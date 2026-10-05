@@ -30,11 +30,7 @@
 		},
 		{
 			"parameters": {
-				"feedSource": "library",
-				"libFeedLibraryId": "REPLACE_WITH_LIBRARY_TEMPLATE_ID",
-				"libName": "n8n demo feed",
-				"libFilterConfig": "{}",
-				"libFunctionConfig": "{}"
+				"feedId": "REPLACE_WITH_FEED_UUID"
 			},
 			"id": "d5e3b2f7-9c78-4c3c-9f50-3ba2c4d5e6f7",
 			"name": "Atria Trigger",

@@ -5,8 +5,6 @@ import type { LibraryOperation } from '../resources/library';
 import type { OutputOperation } from '../resources/output';
 import { FeedListOperation } from './feed/list.operation';
 import { FeedGetOperation } from './feed/get.operation';
-import { FeedCreateOperation } from './feed/create.operation';
-import { FeedCreateFromLibraryOperation } from './feed/createFromLibrary.operation';
 import { FeedUpdateOperation } from './feed/update.operation';
 import { FeedDeleteOperation } from './feed/delete.operation';
 import { FeedStartOperation } from './feed/start.operation';
@@ -46,8 +44,6 @@ export type AtriaOperationKey = {
 export const ATRIA_OPERATIONS: { [K in AtriaOperationKey]: OperationConstructor } = {
 	'feed:list': FeedListOperation,
 	'feed:get': FeedGetOperation,
-	'feed:create': FeedCreateOperation,
-	'feed:createFromLibrary': FeedCreateFromLibraryOperation,
 	'feed:update': FeedUpdateOperation,
 	'feed:delete': FeedDeleteOperation,
 	'feed:start': FeedStartOperation,

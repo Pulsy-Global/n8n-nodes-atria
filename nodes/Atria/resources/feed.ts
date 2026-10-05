@@ -1,15 +1,9 @@
 import type { INodeProperties, INodePropertyOptions } from 'n8n-workflow';
 import { searchModes } from '../../Shared/lib/property-modes';
-import { DATA_TYPES, ERROR_HANDLING } from '../../Shared/constants';
+import { DATA_TYPES } from '../../Shared/constants';
 
 /** Feed operations offered in the UI — also drives the `feed:*` registry keys. */
 export const FEED_OPERATIONS = [
-	{ name: 'Create', value: 'create', description: 'Create a custom feed (filter/function code)' },
-	{
-		name: 'Create From Library',
-		value: 'createFromLibrary',
-		description: 'Deploy a feed built from a library template',
-	},
 	{ name: 'Delete', value: 'delete', description: 'Delete a feed' },
 	{ name: 'Get', value: 'get', description: 'Get a single feed' },
 	{ name: 'Get Many', value: 'list', description: 'List feeds' },
@@ -49,35 +43,13 @@ export const feedProperties: INodeProperties[] = [
 		default: '',
 		description: 'The feed to act on',
 	},
-	// --- create (custom) ---
-	{
-		displayName: 'Name',
-		name: 'name',
-		type: 'string',
-		required: true,
-		displayOptions: { show: { resource: ['feed'], operation: ['create'] } },
-		default: '',
-	},
-	{
-		displayName: 'Version',
-		name: 'version',
-		type: 'string',
-		displayOptions: { show: { resource: ['feed'], operation: ['create'] } },
-		default: '1.0',
-	},
-	{
-		displayName: 'Description',
-		name: 'description',
-		type: 'string',
-		displayOptions: { show: { resource: ['feed'], operation: ['create'] } },
-		default: '',
-	},
+	// --- shared by test (dry-run code against a block) ---
 	{
 		displayName: 'Network Name or ID',
 		name: 'networkId',
 		type: 'options',
 		required: true,
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'test'] } },
+		displayOptions: { show: { resource: ['feed'], operation: ['test'] } },
 		typeOptions: { loadOptionsMethod: 'networkLoader' },
 		default: '',
 		description: 'Blockchain network the feed reads from. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
@@ -87,41 +59,16 @@ export const feedProperties: INodeProperties[] = [
 		name: 'dataType',
 		type: 'options',
 		required: true,
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'test'] } },
+		displayOptions: { show: { resource: ['feed'], operation: ['test'] } },
 		options: DATA_TYPES.map((v) => ({ name: v, value: v })),
 		default: 'BlockWithLogs',
-	},
-	{
-		displayName: 'Error Handling',
-		name: 'errorHandling',
-		type: 'options',
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'createFromLibrary'] } },
-		options: ERROR_HANDLING.map((v) => ({ name: v, value: v })),
-		default: 'StopOnError',
-		description: 'What the feed runtime does when the filter/function throws',
-	},
-	{
-		displayName: 'Start Block',
-		name: 'startBlock',
-		type: 'number',
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'createFromLibrary'] } },
-		default: 0,
-		description: 'Block to begin processing from. Leave as 0 to start from the latest block.',
-	},
-	{
-		displayName: 'End Block',
-		name: 'endBlock',
-		type: 'number',
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'createFromLibrary'] } },
-		default: 0,
-		description: 'Last block to process (backfill). Leave as 0 for no end (live feed).',
 	},
 	{
 		displayName: 'Filter Code',
 		name: 'filterCode',
 		type: 'string',
 		typeOptions: { alwaysOpenEditWindow: true, editor: 'jsEditor' },
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'test'] } },
+		displayOptions: { show: { resource: ['feed'], operation: ['test'] } },
 		default: '',
 		description: 'ECMA filter code executed against each block',
 	},
@@ -130,58 +77,21 @@ export const feedProperties: INodeProperties[] = [
 		name: 'functionCode',
 		type: 'string',
 		typeOptions: { alwaysOpenEditWindow: true, editor: 'jsEditor' },
-		displayOptions: { show: { resource: ['feed'], operation: ['create', 'test'] } },
+		displayOptions: { show: { resource: ['feed'], operation: ['test'] } },
 		default: '',
 		description: 'ECMA transform function code',
 	},
-	{
-		displayName: 'Block Delay',
-		name: 'blockDelay',
-		type: 'number',
-		displayOptions: { show: { resource: ['feed'], operation: ['create'] } },
-		default: 0,
-		typeOptions: { minValue: 0, maxValue: 100 },
-		description: 'Delay (in blocks) between ingestion and processing',
-	},
-	// --- create from library ---
-	{
-		displayName: 'Library Template',
-		name: 'feedLibraryId',
-		type: 'string',
-		required: true,
-		displayOptions: { show: { resource: ['feed'], operation: ['createFromLibrary'] } },
-		modes: searchModes('librarySearchList', 'Select a template'),
-		default: '',
-		description: 'Feed library template to deploy',
-	},
-	{
-		displayName: 'Filter Config (JSON)',
-		name: 'filterConfig',
-		type: 'string',
-		displayOptions: { show: { resource: ['feed'], operation: ['createFromLibrary'] } },
-		default: '{}',
-		description:
-			'JSON object of template filter parameters, e.g. <code>{"contractAddress": {"type": "String", "value": "0x…"}}</code>. Get the shape from the library Get operation.',
-	},
-	{
-		displayName: 'Function Config (JSON)',
-		name: 'functionConfig',
-		type: 'string',
-		displayOptions: { show: { resource: ['feed'], operation: ['createFromLibrary'] } },
-		default: '{}',
-		description: 'JSON object of template function parameters (same shape as filter config)',
-	},
-	// --- outputs / tags (shared by create variants and update) ---
+	// --- outputs / tags (update) ---
 	{
 		displayName: 'Output Names or IDs',
 		name: 'outputIds',
 		type: 'multiOptions',
 		displayOptions: {
-			show: { resource: ['feed'], operation: ['create', 'createFromLibrary', 'update'] },
+			show: { resource: ['feed'], operation: ['update'] },
 		},
 		typeOptions: { loadOptionsMethod: 'outputLoader' },
 		default: [],
-		description: 'Delivery outputs attached to the feed. Required for create operations. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		description: 'Delivery outputs attached to the feed. Used together with "Replace Outputs". Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 	},
 	{
 		displayName: 'Tag Names or IDs',
@@ -189,7 +99,7 @@ export const feedProperties: INodeProperties[] = [
 		type: 'multiOptions',
 		description: 'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 		displayOptions: {
-			show: { resource: ['feed'], operation: ['create', 'createFromLibrary', 'update'] },
+			show: { resource: ['feed'], operation: ['update'] },
 		},
 		typeOptions: { loadOptionsMethod: 'tagLoader' },
 		default: [],

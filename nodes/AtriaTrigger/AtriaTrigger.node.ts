@@ -1,9 +1,7 @@
 import type {
 	IHookFunctions,
-	ILoadOptionsFunctions,
 	IDataObject,
 	INodeExecutionData,
-	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookFunctions,
@@ -13,19 +11,16 @@ import { NodeConnectionTypes } from 'n8n-workflow';
 import { makeListSearchHandler } from '../Shared/lib/list-search';
 import { PROBE_HEADER } from './constants/AtriaTrigger.constants';
 import { FeedService } from '../Shared/services/Feed.service';
-import { LibraryService } from '../Shared/services/Library.service';
-import { NetworkService } from '../Shared/services/Network.service';
 import { TriggerRegistrationService } from './services/Registration.service';
 import { feedSourceProperties } from './resources/feed-source';
-import { createFeedProperties } from './resources/create-feed';
-import { createFromLibraryProperties } from './resources/create-from-library';
 import { triggerOptionsProperties } from './resources/options';
 
 /**
- * On activation this node attaches itself to an Atria feed. With "Feed Source ›
- * Create new feed" it also creates and starts that feed. On deactivation the
- * output is detached and deleted; a self-created feed is paused but kept.
- * All lifecycle logic lives in `TriggerRegistrationService`.
+ * On activation this node creates a webhook output and attaches it to an
+ * existing Atria feed; the workflow starts whenever that feed delivers
+ * results. On deactivation the output is detached and deleted. The feed
+ * itself is never created, started or paused from here. All lifecycle logic
+ * lives in `TriggerRegistrationService`.
  */
 export class AtriaTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -34,9 +29,9 @@ export class AtriaTrigger implements INodeType {
 		icon: { light: 'file:AtriaTrigger.svg', dark: 'file:AtriaTrigger.svg' },
 		group: ['trigger'],
 		version: 1,
-		description: 'Starts the workflow when an Atria feed delivers new blockchain results',
-		subtitle:
-			'={{ $parameter["feedSource"] === "create" ? "Create new feed" : $parameter["feedSource"] === "library" ? "From library" : "Existing feed" }}',
+		description:
+			'Starts the workflow when an existing Atria feed delivers new blockchain results',
+		subtitle: '={{ $parameter["feedId"] }}',
 		defaults: { name: 'Atria Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
@@ -51,12 +46,7 @@ export class AtriaTrigger implements INodeType {
 				path: 'atria',
 			},
 		],
-		properties: [
-			...feedSourceProperties,
-			...createFeedProperties,
-			...createFromLibraryProperties,
-			...triggerOptionsProperties,
-		],
+		properties: [...feedSourceProperties, ...triggerOptionsProperties],
 	};
 
 	methods = {
@@ -65,19 +55,6 @@ export class AtriaTrigger implements INodeType {
 				(ctx, skip, top, filter) => new FeedService(ctx).searchPage(skip, top, filter),
 				(f) => ({ name: `${f.name} (${f.status ?? 'unknown'})`, value: f.id }),
 			),
-			librarySearchList: makeListSearchHandler(
-				(ctx, skip, top) => new LibraryService(ctx).searchPage(skip, top),
-				(l) => ({
-					name: l.name,
-					value: l.id,
-					hint: `${l.networkId ?? ''} • ${l.dataType ?? ''}`,
-				}),
-			),
-		},
-		loadOptions: {
-			async networkLoader(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				return new NetworkService(this).getEnvironmentOptions();
-			},
 		},
 	};
 

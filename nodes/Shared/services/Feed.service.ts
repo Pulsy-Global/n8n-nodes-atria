@@ -3,7 +3,7 @@ import { AtriaApiClient, encodePath, odataLiteral, type AtriaContext } from '../
 import { listAll, unwrapPaged } from '../lib/pagination';
 import { feedToUpdateBody } from '../lib/feed.dto';
 import type { AtriaPage, CreateFeedDto, FeedDto } from '../lib/dtos';
-import { ACTIVE_FEED_STATUSES, FEED_LOOKUP_TOP, PAGE_SIZE } from '../constants';
+import { FEED_LOOKUP_TOP, PAGE_SIZE } from '../constants';
 
 /**
  * All `/feeds` endpoints — used by the Atria node's Feed resource and by the
@@ -31,14 +31,6 @@ export class FeedService {
 
 	async getById(feedId: string): Promise<FeedDto> {
 		return this.client.request<FeedDto>({ method: 'GET', endpoint: `/feeds/${encodePath(feedId)}` });
-	}
-
-	async create(body: CreateFeedDto): Promise<FeedDto> {
-		return this.client.request<FeedDto>({ method: 'POST', endpoint: '/feeds', body });
-	}
-
-	async createFromLibrary(body: IDataObject): Promise<FeedDto> {
-		return this.client.request<FeedDto>({ method: 'POST', endpoint: '/feeds/library', body });
 	}
 
 	async update(feedId: string, body: CreateFeedDto): Promise<FeedDto> {
@@ -94,19 +86,5 @@ export class FeedService {
 			{ top },
 		);
 		return (response?.items ?? []).find((f) => (f.outputIds ?? []).includes(outputId));
-	}
-
-	/** Starts the feed unless it is already Running/Pending (idempotent). */
-	async ensureStarted(feedId: string): Promise<void> {
-		const feed = await this.getById(feedId);
-		if (feed?.status && ACTIVE_FEED_STATUSES.includes(feed.status)) return;
-		await this.start(feedId);
-	}
-
-	/** Pauses the feed only when it is Running/Pending. Throws are left to the caller. */
-	async pauseIfActive(feedId: string): Promise<void> {
-		const feed = await this.getById(feedId);
-		if (!feed?.status || !ACTIVE_FEED_STATUSES.includes(feed.status)) return;
-		await this.pause(feedId);
 	}
 }

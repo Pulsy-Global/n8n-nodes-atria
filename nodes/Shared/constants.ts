@@ -11,12 +11,6 @@ export const LOAD_OPTIONS_TOP = 200;
 /** Atria feed data types. */
 export const DATA_TYPES = ['BlockWithTransactions', 'BlockWithLogs', 'BlockWithTraces'];
 
-/** What the feed runtime does when the filter/function throws. */
-export const ERROR_HANDLING = ['StopOnError', 'ContinueOnError'];
-
-/** Feed statuses that mean "already running" — no need to start again. */
-export const ACTIVE_FEED_STATUSES = ['Running', 'Pending'];
-
 /** Default per-request delivery timeout for webhook outputs, in seconds. */
 export const DEFAULT_TIMEOUT_SECONDS = 10;
 

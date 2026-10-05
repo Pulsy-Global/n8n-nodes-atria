@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [0.1.4] - 2026-10-05
+
+### Removed (breaking)
+
+- **Atria Trigger: "Create new feed" and "Create from library" feed sources.** The trigger now
+  only attaches to an **existing feed**, selected by search or by pasting its UUID. The
+  `feedSource` parameter and all `create*` / `lib*` parameters are gone; workflows that used
+  those modes must select a feed UUID after upgrading. Feeds are created and configured in the
+  Atria dashboard.
+- **Atria node: Feed › Create and Feed › Create From Library operations.** All other feed
+  operations (list, get, update, delete, start, pause, test, get results) are unchanged.
+- Internals: the shared create-body builders and the now-unused feed create/start-on-registration
+  lifecycle code.
+
+### Changed
+
+- On deactivation the trigger only detaches and deletes its own webhook output; it never
+  pauses or otherwise modifies the feed.
+
 ## [0.1.3] - 2026-10-01
 
 ### Added

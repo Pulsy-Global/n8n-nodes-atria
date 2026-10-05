@@ -1,7 +1,7 @@
 # n8n-nodes-atria
 
-[Atria](https://atria.pulsy.app) community nodes for [n8n](https://n8n.io): deploy and manage
-blockchain data feeds, and let feed results start your workflows.
+[Atria](https://atria.pulsy.app) community nodes for [n8n](https://n8n.io): manage blockchain data
+feeds, and let feed results start your workflows.
 
 **Atria** is a platform for building and deploying blockchain data feeds — small modules that
 extract specific data from blockchain blocks and stream it to your chosen destinations.
@@ -12,28 +12,25 @@ extract specific data from blockchain blocks and stream it to your chosen destin
 
 | Resource | Operations |
 | --- | --- |
-| **Feed** | list, get, create (custom code), create from library, update, delete, start, pause, test (dry-run on a block), get results |
+| **Feed** | list, get, update, delete, start, pause, test (dry-run on a block), get results |
 | **Output** | list, get, create webhook output, update, delete |
 | **Library** | list templates, get template (includes `filterConfig`/`functionConfig` shapes) |
 
+Feeds themselves are created and configured in the [Atria dashboard](https://atria.pulsy.app);
+the nodes manage and consume existing feeds.
+
 ### Atria Trigger (webhook trigger)
 
-Starts the workflow whenever the selected feed delivers a new result.
-
-Three **Feed Source** modes:
-
-- *Existing Feed* — attach to a feed you already have.
-- *Create New Feed* — create a custom-code feed (filter/function JS) and start it on activation.
-- *Create From Library* — clone a feed library template (with `filterConfig`/`functionConfig`
-  parameters) and start it on activation. The clone is created once and reused on later
-  activations; changing the selected template creates a new clone and pauses the old one.
+Starts the workflow whenever an **existing feed** (selected by search or pasted UUID) delivers
+a new result.
 
 On **activation** the node automatically:
 
 1. creates a dedicated webhook output pointing at the workflow's production webhook URL;
 2. attaches it to the selected feed (existing outputs are preserved);
 
-On **deactivation** it detaches and deletes the output again.
+On **deactivation** it detaches and deletes the output again. The feed itself is never
+modified otherwise, and never started or paused from here.
 
 Each trigger item contains the delivery payload:
 
@@ -65,19 +62,24 @@ Enable *Options → Include Delivery Headers* to also expose the `X-Atria-Feed-I
 
 ## Quick start: "alert me on big USDT transfers"
 
-1. Add the **Atria Trigger** node and set **Feed Source → Create From Library** — e.g. the
-   *ERC-20 large transfers* template (fill in its Filter/Function Config; see the **Library →
-   Get** operation for the parameter shape). Or pick an existing feed / write custom code.
-2. Activate the workflow — the node wires a webhook output onto the feed for you.
-3. Connect the trigger to Slack / Telegram / HTTP Request / whatever you like.
+1. In the Atria dashboard, create (or open) the feed you want to listen to — e.g. an ERC-20
+   large-transfers feed — and copy its **UUID**.
+2. Add the **Atria Trigger** node, pick that feed (search or paste the UUID).
+3. Activate the workflow — the node wires a webhook output onto the feed for you.
+4. Connect the trigger to Slack / Telegram / HTTP Request / whatever you like.
 
 Every matching blockchain event now runs the workflow.
 
 ## Recipes with the action node
 
-- **Nightly backfill**: Schedule → *Feed: Create* (`startBlock`/`endBlock`) → *Feed: Start* → wait → *Feed: Get Results* → summarize in AI node → *Feed: Delete*.
-- **Self-service deployer**: Chat/Typeform input → *Library: Get* (to learn config keys) → *Output: Create* → *Feed: Create From Library* with `filterConfig` JSON → *Feed: Start*.
-- **Safe code iteration**: *Feed: Test* against one block with `executeOutputs: false` before touching production filters.
+- **Delivery audit**: *Feed: Get Results* on a production feed to inspect recent payloads without
+  wiring a workflow.
+- **Run-window control**: Schedule → *Feed: Start* in the morning → *Feed: Pause* at night, with a
+  *Feed: Get* in between to log the status.
+- **Safe code iteration**: *Feed: Test* against one block with `executeOutputs: false` before
+  applying the codes to your feed in Atria.
+- **Custom delivery endpoints**: *Output: Create* (e.g. pointing at webhook.site while
+  debugging) → *Feed: Update* with *Replace Outputs*.
 
 ## Local development (running this package in n8n)
 

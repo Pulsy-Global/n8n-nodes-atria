@@ -8,14 +8,9 @@ import {
 } from '../constants/AtriaTrigger.constants';
 
 export interface TriggerRegistrationState {
-	/** Feed this node is attached to. For self-created feeds equals `createdFeedId`. */
+	/** Existing feed this node's output is attached to. */
 	feedId?: string;
-	/** Set when the trigger itself created the feed; reused on the next activation. */
-	createdFeedId?: string;
-	/** Library template the self-created feed was cloned from ("library" mode). */
-	createdLibraryId?: string;
 	outputId?: string;
-	previousOutputIds?: string[];
 	url?: string;
 	createdInManualRun?: boolean;
 }
