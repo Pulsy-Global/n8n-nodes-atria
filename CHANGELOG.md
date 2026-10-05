@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [0.2.0] - 2026-10-05
+
+### Added
+
+- **Demo workflow shipped with the package.** `examples/atria-demo-workflow.json` is now
+  included in the npm tarball (`files` → `examples`). After installing the community node it is
+  available at `~/.n8n/nodes/node_modules/n8n-nodes-atria/examples/atria-demo-workflow.json`
+  and can be imported via *Workflows → Import from File*.
+
+### Changed
+
+- The demo workflow now mirrors the current node set (manual trigger → Get feed; Atria Trigger
+  → Edit Fields → HTTP Request) and ships with placeholders instead of real values
+  (`REPLACE_WITH_CREDENTIAL_ID`, `REPLACE_WITH_FEED_UUID`, `REPLACE_WITH_YOUR_TOKEN`).
+
 ## [0.1.4] - 2026-10-05
 
 ### Removed (breaking)

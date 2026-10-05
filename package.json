@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-atria",
-	"version": "0.1.4",
+	"version": "0.2.0",
 	"description": "Atria community nodes for n8n: deploy and manage blockchain data feeds, and stream feed results into your workflows",
 	"keywords": [
 		"n8n-community-node-package",
@@ -33,6 +33,7 @@
 	},
 	"files": [
 		"dist",
+		"examples",
 		"LICENSE.md",
 		"README.md"
 	],
