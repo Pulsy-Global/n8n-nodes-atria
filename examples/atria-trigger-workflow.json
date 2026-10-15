@@ -1,5 +1,5 @@
 {
-  "name": "Atria Demo Workflow",
+  "name": "Atria Trigger Workflow",
   "nodes": [
     {
       "parameters": {
