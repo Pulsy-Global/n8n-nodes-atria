@@ -4,3 +4,7 @@ dist/
 .DS_Store
 *.log
 *.tgz
+
+# instance-specific workflow JSON: real credential ids, spreadsheet id, Atria feed config
+workflows/live-snapshot.json
+workflows/my-workflow-3.json

@@ -1,4 +1,40 @@
 import type { CreateFeedDto, FeedDto } from './dtos';
+import { CREATED_FEED_ERROR_HANDLING, CREATED_FEED_VERSION } from '../constants';
+
+/**
+ * Write body for the feed the Atria Trigger creates itself
+ * (`POST /feeds` and the follow-up `PUT /feeds/{id}`).
+ *
+ * Only name, network, data type, filter code and start block are node
+ * parameters — everything else is fixed here: no transform function, no end
+ * block (live feed), no block delay, no tags, and errors do not stop the feed.
+ */
+export function buildTriggerCreateFeedBody(spec: {
+	name: string;
+	networkId: string;
+	dataType: string;
+	filterCode: string;
+	startBlock: number | null;
+	outputIds: string[];
+	description?: string;
+}): CreateFeedDto {
+	return {
+		name: spec.name,
+		version: CREATED_FEED_VERSION,
+		description: spec.description ?? undefined,
+		networkId: spec.networkId,
+		dataType: spec.dataType,
+		errorHandling: CREATED_FEED_ERROR_HANDLING,
+		// "Latest Block" (null) and 0 both mean "not set" for the write DTO
+		startBlock: spec.startBlock && spec.startBlock > 0 ? spec.startBlock : null,
+		endBlock: null,
+		filterCode: spec.filterCode || null,
+		functionCode: null,
+		outputIds: spec.outputIds,
+		tagIds: [],
+		blockDelay: 0,
+	};
+}
 
 /**
  * Rebuilds a full CreateFeedDto (PUT body) from a fetched FeedDto, applying

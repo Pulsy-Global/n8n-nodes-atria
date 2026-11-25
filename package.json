@@ -1,61 +1,70 @@
 {
-	"name": "n8n-nodes-atria",
-	"version": "0.2.0",
-	"description": "Atria community nodes for n8n: deploy and manage blockchain data feeds, and stream feed results into your workflows",
-	"keywords": [
-		"n8n-community-node-package",
-		"atria",
-		"blockchain",
-		"feeds",
-		"webhook"
-	],
-	"license": "MIT",
-	"homepage": "https://github.com/Pulsy-Global/n8n-nodes-atria",
-	"author": {
-		"name": "Pulsy Labs LLC",
-		"email": "savva@pulsy.app"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/Pulsy-Global/n8n-nodes-atria.git"
-	},
-	"engines": {
-		"node": ">=18.10"
-	},
-	"main": "",
-	"scripts": {
-		"build": "rimraf dist && tsc && node scripts/postbuild.mjs",
-		"dev": "tsc --watch",
-		"lint": "n8n-node lint",
-		"lint:fix": "n8n-node lint --fix",
-		"test": "npm run build && npm run lint",
-		"prepublishOnly": "npm run build"
-	},
-	"files": [
-		"dist",
-		"examples",
-		"LICENSE.md",
-		"README.md"
-	],
-	"n8n": {
-		"n8nNodesApiVersion": 1,
-		"strict": true,
-		"credentials": [
-			"dist/credentials/AtriaApi.credentials.js"
-		],
-		"nodes": [
-			"dist/nodes/Atria/Atria.node.js",
-			"dist/nodes/AtriaTrigger/AtriaTrigger.node.js"
-		]
-	},
-	"devDependencies": {
-		"@n8n/node-cli": "^0.50.4",
-		"@types/node": "^22.10.0",
-		"n8n-workflow": "^2.16.0",
-		"rimraf": "^6.0.1",
-		"typescript": "~5.7.2"
-	},
-	"peerDependencies": {
-		"n8n-workflow": "*"
-	}
+  "name": "n8n-nodes-atria",
+  "version": "0.2.1",
+  "description": "Atria community nodes for n8n: deploy and manage blockchain data feeds, and stream feed results into your workflows",
+  "keywords": [
+    "n8n-community-node-package",
+    "atria",
+    "blockchain",
+    "feeds",
+    "webhook"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/Pulsy-Global/n8n-nodes-atria",
+  "author": {
+    "name": "Pulsy Labs LLC",
+    "email": "savva@pulsy.app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pulsy-Global/n8n-nodes-atria.git"
+  },
+  "engines": {
+    "node": ">=18.10"
+  },
+  "main": "",
+  "scripts": {
+    "build": "rimraf dist && tsc && node scripts/postbuild.mjs",
+    "dev": "tsc --watch",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "test": "npm run build && npm run lint",
+    "test:workflow": "node scripts/test-workflow-docs.mjs && node scripts/test-whale-amount-stage.mjs && node scripts/test-hourly-digest.mjs && node scripts/test-weekly-partitioning.mjs",
+    "prepublishOnly": "npm run build",
+    "wf:pull": "node scripts/pull-workflow-snapshot.mjs",
+    "wf:build": "node scripts/build-workflow.mjs && node scripts/export-for-import.mjs --graph workflows/my-workflow-3.json",
+    "wf:apply": "node scripts/apply-workflow-json.mjs",
+    "wf:example": "node scripts/export-example-workflow.mjs",
+    "wf:export": "node scripts/export-for-import.mjs --graph workflows/my-workflow-3.json",
+    "tg:chat-id": "node scripts/telegram-chat-id.mjs",
+    "wf:build:digest": "node scripts/hourly-digest-stage.mjs --from workflows/live-snapshot.json --out workflows/my-workflow-3.json && node scripts/export-for-import.mjs --graph workflows/my-workflow-3.json",
+    "wf:weekly": "node scripts/weekly-partitioning-stage.mjs --from workflows/live-snapshot.json --out workflows/stage-1-weekly.json"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "LICENSE.md",
+    "README.md"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/AtriaApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Atria/Atria.node.js",
+      "dist/nodes/AtriaTrigger/AtriaTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "^0.50.4",
+    "@types/node": "^22.10.0",
+    "n8n-workflow": "^2.16.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.7.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
 }

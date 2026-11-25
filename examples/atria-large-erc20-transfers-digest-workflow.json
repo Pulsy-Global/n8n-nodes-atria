@@ -1,0 +1,1367 @@
+{
+  "name": "Atria Large ERC-20 Transfers Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "feedSource": "create",
+        "createName": "Erc-20-transfers-n8n",
+        "createNetworkId": "ethereum-mainnet",
+        "createFilterCode": "const ethers = require(\"ethers\");\n\nfunction main(stream) {\n    const iface = new ethers.Interface([{\n        name: 'Transfer',\n        type: 'event',\n        inputs: [\n            { indexed: true,  name: 'from',  type: 'address' },\n            { indexed: true,  name: 'to',    type: 'address' },\n            { indexed: false, name: 'value', type: 'uint256' }\n        ]\n    }]);\n\n    const topic = iface.getEvent('Transfer').topicHash;\n\n    let best = null;\n    let bestValue = BigInt(0);\n\n    for (const log of stream.logs || []) {\n        if (!log.topics || String(log.topics[0]).toLowerCase() !== topic) continue;\n        let args;\n        try { args = iface.parseLog(log).args; } catch { continue; }\n        const value = BigInt(args.value.toString());\n        if (value <= bestValue) continue;\n        bestValue = value;\n        best = {\n            hash: log.transactionHash,\n            contract: String(log.address).toLowerCase(),\n            from: args.from,\n            to: args.to,\n            rawAmount: args.value.toString()\n        };\n    }\n\n    if (!best) return null;\n\n    return {                      // filled downstream from CoinGecko metadata\n        contract: best.contract,\n        from: best.from.toLowerCase(),\n        to: best.to.toLowerCase(),\n        rawAmount: best.rawAmount,       // raw units - Amount Resolve scales it\n        network: \"ethereum-mainnet\",     // keep in sync with Network in the trigger\n        txHash: best.hash\n    };\n}",
+        "options": {}
+      },
+      "id": "16ed6b21-c425-4e46-a80f-ce366dd8440d",
+      "name": "Atria Trigger",
+      "notesInFlow": true,
+      "type": "n8n-nodes-atria.atriaTrigger",
+      "typeVersion": 1,
+      "position": [
+        6128,
+        2112
+      ],
+      "webhookId": "dfc4c7ac-9e26-434d-8350-22fefecfb082",
+      "credentials": {
+        "atriaApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Atria API"
+        }
+      },
+      "notes": "Feed source: Create New Feed - creates and starts the ERC-20 feed on activation, pauses it on deactivation. Emits {contract, from, to, rawAmount, network, txHash}; nothing else in this workflow reads the raw block."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - the whale gate, placed BEFORE the GoPlus and\n// Sheets enrichment branches: sub-$100k events are dropped here, so their API quota is\n// only spent on events that can actually alert. Unvaluable events are KEPT - we never\n// dismiss an event by a USD value we could not compute (P2 floor downstream).\n// Dropped events are expressed by returning a filtered array with explicit `pairedItem`\n// input indices (docs: \"Preserving linking in the Code node\").\nconst WHALE_MIN_USD = 100000; // the whale filter - on converted USD value, never on rawAmount\n\nconst inputs = $input.all();\nconst kept = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const item = inputs[i].json;\n  if (item.usdValue !== null && item.usdValue < WHALE_MIN_USD) continue;\n  kept.push({ json: item, pairedItem: i });\n}\nreturn kept;\n"
+      },
+      "id": "97bcd5dc-6f9e-46c6-8910-0547957619a2",
+      "name": "Whale Gate",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6752,
+        2112
+      ],
+      "notes": "Threshold gate placed BEFORE enrichment: keeps >= $100k, and keeps every event it could not value - an event is never dismissed by a number we failed to compute."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Whale transfers"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "contract",
+              "displayName": "contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "from",
+              "displayName": "from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "to",
+              "displayName": "to",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rawAmount",
+              "displayName": "rawAmount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "network",
+              "displayName": "network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "txHash",
+              "displayName": "txHash",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chainId",
+              "displayName": "chainId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cgPlatform",
+              "displayName": "cgPlatform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cgId",
+              "displayName": "cgId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "canonicalSymbol",
+              "displayName": "canonicalSymbol",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decimals",
+              "displayName": "decimals",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priceSource",
+              "displayName": "priceSource",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "usdValue",
+              "displayName": "usdValue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "metaState",
+              "displayName": "metaState",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "safetyState",
+              "displayName": "safetyState",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "safetyFlags",
+              "displayName": "safetyFlags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "safetyResponses",
+              "displayName": "safetyResponses",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "capturedAt",
+              "displayName": "capturedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fromLabel",
+              "displayName": "fromLabel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "toLabel",
+              "displayName": "toLabel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "knownWalletsLoaded",
+              "displayName": "knownWalletsLoaded",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {}
+          }
+        }
+      },
+      "id": "7b8659b8-4e2a-4e3f-9644-9a87727ae55f",
+      "name": "Append row in sheet",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        8016,
+        2096
+      ],
+      "notes": "Appends one row per whale transfer to Whale transfers - the ledger both the hourly digest and the weekly partitioning read."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Atria networkId -> enrichment endpoints (CoinGecko platform slug, GoPlus numeric\n// chain). THE single network map of this workflow: the Atria Trigger stamps `network`\n// on every event; Amount Resolve re-reads these rows to stamp chainId. Unmapped values\n// (testnets, non-EVM) never produce a request here - the documented degradation applies\n// downstream: unresolved meta -> usdValue null, never auto-dropped.\n// Supported chains: Ethereum + Polygon mainnets. Testnets (incl. ethereum-sepolia) are\n// deliberately left unmapped -> they degrade to usdValue null, never a bogus CoinGecko\n// request. Add a chain by extending this map; no other node needs to change.\nconst NETWORKS = {\n  'ethereum-mainnet': { chainId: 1, cgPlatform: 'ethereum' },\n  'polygon-mainnet': { chainId: 137, cgPlatform: 'polygon-pos' },\n};\n\n// Run mode: 'Run Once for All Items' - external-call dedup: the CoinGecko contract\n// endpoint returns the SAME payload for every transfer of one token, so a batch of\n// events collapses into ONE request per unique (network, contract).\n// This branch is a dead-end leaf: Amount Resolve indexes the responses by address (the\n// canvas invariant wants this chain ABOVE Amount Resolve).\nconst seen = new Set();\nconst kept = [];\nfor (const { json: envelope } of $input.all()) {\n  // the Atria Trigger delivers the whole webhook body: normalized fields live under `data`\n  const item = envelope.data ?? envelope;\n  const net = NETWORKS[item.network];\n  if (!net || !item.contract) continue; // unmapped network: no CG endpoint exists for it\n  const key = [item.network, item.contract].join('|');\n  if (seen.has(key)) continue;\n  seen.add(key);\n  kept.push({ json: { network: item.network, contract: item.contract, chainId: net.chainId, cgPlatform: net.cgPlatform } });\n}\nreturn kept;\n"
+      },
+      "id": "34f49c34-c007-42d0-98ef-d5b5c042eace",
+      "name": "Unique Contracts",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6352,
+        1920
+      ],
+      "notes": "The one network map of this workflow: Atria network id → CoinGecko platform and GoPlus chain. Unmapped networks never leave the workflow - they stay unvaluable rather than failing."
+    },
+    {
+      "parameters": {
+        "url": "=https://api.coingecko.com/api/v3/coins/{{ $json.cgPlatform }}/contract/{{ $json.contract }}?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false",
+        "options": {}
+      },
+      "id": "9ebfa0ab-c168-4e08-ac79-2fb6fc78afd0",
+      "name": "Token Price & Meta (CoinGecko)",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 15000,
+      "position": [
+        6528,
+        1920
+      ],
+      "continueOnFail": true,
+      "onError": "continueOnFail",
+      "notes": "One request per unique token in the batch: id, symbol, decimals and USD price. Decimals are what turn rawAmount into a human amount."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - the CoinGecko branch above (Unique Contracts)\n// deduplicates external calls by token and ends as a leaf, so responses are mapped\n// here by contract address: one request serves every transfer of the same token in\n// the batch. Explicit pairedItem keeps the trigger's item indices intact downstream.\n// Canvas invariant (n8n executionOrder v1): the Unique Contracts -> CoinGecko leaf\n// chain must stay ABOVE this node - mis-dragged, the map is empty and every event\n// degrades to unvaluable, not a crashed execution.\n// This is the only node that turns token units into numbers with scale.\nconst chainOf = {};\ntry {\n  for (const r of $('Unique Contracts').all()) chainOf[r.json.network] = r.json; // network -> endpoints\n} catch (err) { /* branch not executed - chainId stays null, GoPlus degrades */ }\n\nconst respByContract = {};\ntry {\n  for (const r of $('Token Price & Meta (CoinGecko)').all()) {\n    const j = r.json || {};\n    // coins/<platform>/contract/<address> answers with `contract_address` (older API used\n    // `token_address`); failed calls pass the input through and still carry `contract`.\n    const addr = String(j.token_address ?? j.contract_address ?? j.contract ?? '').toLowerCase();\n    if (addr) respByContract[addr] = j; // failed calls pass the input through (+ error)\n  }\n} catch (err) { /* branch not executed - everything stays unvaluable */ }\n\nconst inputs = $input.all();\nconst kept = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const source = inputs[i].json;\n  // trigger envelope: {feedId, blockNumber, dataSizeBytes, isTestExecution, data:{…}}\n  const base = { ...(source.data ?? source) };\n  if (source.blockNumber !== undefined) base.blockNumber = source.blockNumber;\n  const resp = respByContract[String(base.contract ?? '').toLowerCase()] || {};\n  const tokenInfo = resp.token_info || {};\n  // `/coins/{platform}/contract/{address}` returns decimals per platform, not as\n  // tokenInfo.decimals - fall back through detail_platforms before giving up.\n  const platform = base.cgPlatform ?? chainOf[base.network]?.cgPlatform;\n  const detail = (resp.detail_platforms || {})[platform] || {};\n\n  const rawDecimals = resp.decimals ?? detail.decimal_place ?? tokenInfo.decimals;\n  const decimals = rawDecimals == null || Number.isNaN(Number(rawDecimals)) ? null : Number(rawDecimals);\n  const amount = decimals === null\n    ? null // unresolvable metadata - do not guess a scale\n    : Math.round(Number(base.rawAmount) / 10 ** decimals * 100) / 100;\n\n  const canonicalSymbol = resp.symbol ?? tokenInfo.symbol ?? null;\n  let price = Number(resp.market_data?.current_price?.usd ?? 0);\n  let priceSource;\n  if (price > 0) {\n    priceSource = 'coingecko';\n  } else if (['usdt', 'usdc', 'dai'].includes(String(canonicalSymbol ?? base.token).toLowerCase())) {\n    price = 1; // stables are $1 for our purposes even if the price block failed\n    priceSource = 'stable-fallback';\n  } else {\n    price = null;\n    priceSource = 'missing';\n  }\n\n  const usdValue = amount === null || price === null\n    ? null\n    : Math.round(amount * price * 100) / 100;\n\n  kept.push({\n    json: {\n      ...base,\n      chainId: chainOf[base.network]?.chainId ?? null,\n      cgPlatform: chainOf[base.network]?.cgPlatform ?? null,\n      cgId: resp.id ?? null,\n      canonicalSymbol,\n      decimals,\n      amount,\n      price,\n      priceSource,\n      usdValue,\n      metaState: resp.error || decimals === null ? 'unresolved' : 'resolved',\n    },\n    pairedItem: i,\n  });\n}\nreturn kept;\n"
+      },
+      "id": "26a514c9-dc76-4756-9d4a-832f11f406c8",
+      "name": "Amount Resolve",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6320,
+        2112
+      ],
+      "notes": "Divides rawAmount by 10 ** decimals from the CoinGecko branch above (a leaf read by name) and stamps usdValue. Keeps pairedItem, so downstream item indices stay the trigger's."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - GoPlus dedup: token_security accepts a comma\n// list of addresses and returns a dict keyed by each of them, so all whale transfers\n// in a batch collapse into ONE request per chain (capped at 30 addresses/call - the\n// free-tier limit). Unmapped networks (chainId null) get no request here.\nconst byChain = {};\nfor (const { json: item } of $input.all()) {\n  if (item.chainId == null || !item.contract) continue;\n  (byChain[item.chainId] = byChain[item.chainId] || new Set()).add(item.contract);\n}\nconst kept = [];\nfor (const chainId of Object.keys(byChain)) {\n  const addrs = [...byChain[chainId]];\n  for (let c = 0; c < addrs.length; c += 30) {\n    kept.push({ json: { chainId, addresses: addrs.slice(c, c + 30).join(',') } });\n  }\n}\n// This branch feeds input 1 of the Safety Join, and the join waits for data on BOTH of\n// its inputs - a branch that delivers zero items never fills its slot and stalls the\n// whole run. So it always emits at least one row: `skip: true` makes the GoPlus URL\n// query the zero address, which answers {\"code\":1,\"result\":{}} at HTTP 200 - a real\n// response that matches no contract and is ignored by Safety Resolve.\nif (kept.length === 0) kept.push({ json: { chainId: null, addresses: '', skip: true } });\nreturn kept;"
+      },
+      "id": "6a2537c9-653c-41f4-af75-cde4e21e5d6d",
+      "name": "Unique Whale Contracts",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6992,
+        1904
+      ],
+      "notes": "GoPlus dedup: every whale contract in the batch collapses into one token_security request per chain (30 addresses per call, the free-tier cap)."
+    },
+    {
+      "parameters": {
+        "url": "=https://api.gopluslabs.io/api/v1/token_security/{{ $json.skip ? '1' : $json.chainId }}?contract_addresses={{ $json.skip ? '0x0000000000000000000000000000000000000000' : $json.addresses }}",
+        "options": {}
+      },
+      "id": "4d85fc13-be93-4460-ad54-4e6e44394754",
+      "name": "Token Safety (GoPlus)",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "position": [
+        7152,
+        2000
+      ],
+      "onError": "continueOnFail",
+      "notes": "Token security for a whole chain in one call. A skip item is sent when there is nothing to ask, so an empty batch cannot stall the branch."
+    },
+    {
+      "parameters": {},
+      "id": "c3859488-5b37-4655-95a8-75f230d33001",
+      "name": "Safety Join (Events + GoPlus)",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7472,
+        2096
+      ],
+      "notes": "Joins whale events with GoPlus answers. Items are told apart by SHAPE, not by source node - only one input carries rawAmount."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - TOKEN SAFETY ONLY: attaches GoPlus security\n// flags to each whale event. Pricing already happened upstream in Amount Resolve.\n//\n// Its input is the Safety Join: whale events (input 0) and GoPlus answers paired with\n// their request (input 1). Items are told apart by SHAPE, not by source node: an event\n// carries `rawAmount` (the trigger's filter always stamps it), a GoPlus body never does.\n//\n// The responses arrive already merged with the Unique Whale Contracts row that produced\n// them (a combineByPosition merge), which matters: GoPlus answers with\n// {code, message, result} and NO chain identifier, so an address that exists on two chains\n// would otherwise inherit whichever chain answered first. Everything is therefore keyed by\n// `chainId|address` and a Polygon event can never be marked clean by an Ethereum answer.\n//\n// Semantics mirror Classify & Score in the reference workflow: flags come back as STRINGS\n// ('0' / '1'); a failed call carries `error` and the addresses it asked for, so those\n// become null - \"asked, got nothing\". Absent and null both mean unavailable, and no event\n// is ever dropped for it.\nconst RISKY_FIELDS = ['is_honeypot', 'is_mintable', 'is_owner_changeable', 'hidden_owner', 'is_blacklisted'];\n\nconst isEvent = (json) => !!json && typeof json === 'object' && json.rawAmount !== undefined;\n\n// batch rows carry chainId as a STRING (Object.keys), events as a NUMBER (NETWORKS map)\nconst key = (chainId, addr) => `${String(chainId ?? '')}|${String(addr ?? '').toLowerCase()}`;\n\nconst safetyByKey = {};\nlet responses = 0;\nfor (const { json: item } of $input.all()) {\n  if (isEvent(item)) continue;\n  if (item.result) {\n    responses++;\n    // one request covers up to 30 addresses - index every entry against THIS chain\n    for (const [addr, flags] of Object.entries(item.result)) {\n      safetyByKey[key(item.chainId, addr)] = flags;\n    }\n  } else if (item.error || item.addresses) {\n    responses++;\n    for (const addr of String(item.addresses ?? '').split(',')) {\n      if (addr) safetyByKey[key(item.chainId, addr)] = null;\n    }\n  }\n}\n\nconst inputs = $input.all();\nconst kept = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const source = inputs[i].json;\n  if (!isEvent(source)) continue; // GoPlus bodies end their journey here\n\n  // undefined = never queried, null = queried but the call failed, object = an answer\n  const entry = safetyByKey[key(source.chainId, source.contract)];\n  const safety = entry || {};\n  const risks = RISKY_FIELDS.filter((k) => safety[k] != null && String(safety[k]) !== '0');\n  const notes = [];\n  if (!entry) notes.push('safety-check-unavailable');\n  if (source.metaState !== 'resolved') notes.push('token-meta-unavailable');\n\n  kept.push({\n    json: {\n      ...source,\n      // 'unavailable' - never 'clean' - whenever GoPlus gave us nothing for this chain+address\n      safetyState: !entry ? 'unavailable' : (risks.length ? 'risky' : 'clean'),\n      safetyFlags: [...risks, ...notes].join(', ') || 'none',\n      safetyResponses: responses,\n    },\n    pairedItem: i,\n  });\n}\nreturn kept;"
+      },
+      "id": "af674086-d311-4d50-9ed2-1d20064e49ae",
+      "name": "Safety Resolve",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7664,
+        2096
+      ],
+      "notes": "Attaches GoPlus flags (honeypot, buy/sell tax, owner change) to each event. Pricing already happened upstream in Amount Resolve."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "clashHandling": {
+            "values": {
+              "resolveClash": "preferLast"
+            }
+          }
+        }
+      },
+      "id": "9475a458-ef77-43dc-bca6-9fd368cf566c",
+      "name": "GoPlus Per Chain",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7312,
+        1920
+      ],
+      "notes": "Pairs each GoPlus request with its answer by position, which is how Safety Resolve can tell requests from responses."
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Wallets",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "3bee623f-63ca-4b40-8bc4-17d11e1ca750",
+      "name": "Known Wallets (Sheets)",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "position": [
+        7040,
+        2208
+      ],
+      "continueOnFail": true,
+      "onError": "continueOnFail",
+      "notes": "Read-only leaf: the Wallets tab maps address → label. Terminal by design and read by name below, so an empty tab cannot stall the branch."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - counterparty labelling. Known Wallets (Sheets)\n// is a read-only leaf hanging off Whale Gate; it is consumed here by name (same pattern\n// as Unique Contracts -> CoinGecko -> Amount Resolve), which keeps the branch clear of\n// the Safety Join: that join waits for data on BOTH inputs, so a wallets tab with zero\n// rows would stall the run.\n//\n// The lookup is a plain in-memory map built once per batch - no per-event request, no\n// filter node. Everything the workflow cannot label stays 'unknown', which downstream\n// scoring treats as \"no evidence\", never as \"safe\". No event is dropped here.\nlet walletRows = [];\ntry {\n  walletRows = $('Known Wallets (Sheets)').all().map((i) => i.json);\n} catch (err) { /* branch not executed or Sheets failed - every label stays 'unknown' */ }\n\nconst labelByAddress = new Map();\nfor (const row of walletRows) {\n  const addr = String(row?.address ?? '').trim().toLowerCase();\n  const label = String(row?.label ?? '').trim();\n  if (addr && label) labelByAddress.set(addr, label); // later rows win on duplicates\n}\n\nconst labelOf = (addr) => labelByAddress.get(String(addr ?? '').trim().toLowerCase()) ?? 'unknown';\n\nconst inputs = $input.all();\nconst kept = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const source = inputs[i].json;\n  kept.push({\n    json: {\n      ...source,\n      capturedAt: new Date().toISOString(), // write-time clock: Last Hour Events filters the ledger on this\n      fromLabel: labelOf(source.from),\n      toLabel: labelOf(source.to),\n      knownWalletsLoaded: labelByAddress.size, // 0 means the tab is empty or unreadable\n    },\n    pairedItem: i,\n  });\n}\nreturn kept;\n"
+      },
+      "id": "0cd38830-4799-4877-a470-e3d8a859d5a9",
+      "name": "Known Wallet Labels",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7840,
+        2096
+      ],
+      "notes": "Adds counterparty labels (exchange, treasury, whale) to each event before it is written to the ledger."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Write a 5-bullet hourly whale-watch digest from these ledger rows (most important flow first, mention labels and USD totals). Reply with STRICT JSON only, no prose, no code fences: {\"headline\": \"optional, max 60 characters\", \"bullets\": [\"3 to 5 lines, max 120 characters each\"]}. Inside the strings write plain text only: no * or _ or backtick markers, no < > & characters, no leading dash, amounts as $11,982. ' + JSON.stringify($json) }}",
+        "options": {
+          "systemMessage": "You are summarizing on-chain whale flows for a trading desk chat channel. Be terse, factual, no hedging. Reply with a single JSON object and nothing else."
+        }
+      },
+      "id": "398b93d0-bd6d-4964-9035-1f9a778ded76",
+      "name": "Digest Writer (AI Agent)",
+      "notesInFlow": true,
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "position": [
+        6736,
+        2528
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Writes the digest. Asked for STRICT JSON so the render step can repair it, with continueRegularOutput so a provider error still yields a digest."
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "e3b47be6-1397-49a1-bd68-3cd3604795cf",
+      "name": "Google Gemini Chat Model",
+      "notesInFlow": true,
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        6736,
+        2720
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gemini API"
+        }
+      },
+      "notes": "Language model behind the digest agent (temperature 0.3)."
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "eabcd3d7-4bc1-432c-a154-92b96380f88e",
+      "name": "Telegram Digest",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        7216,
+        2528
+      ],
+      "webhookId": "3075924a-fc79-4463-835a-7265e07ff649",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      },
+      "notes": "Posts the hourly digest. parse_mode is HTML - n8n's default Markdown rejects the bare * the model emits with 400 can't parse entities."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "3885413e-944e-44ef-bc28-27d2e5732b5f",
+      "name": "Hourly Digest Trigger",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        6128,
+        2528
+      ],
+      "notes": "Every hour on the hour; the digest reads the ledger rather than re-consuming events, so it survives a dropped delivery."
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Whale transfers"
+        },
+        "options": {}
+      },
+      "id": "a746dbe5-883a-48d2-a30e-932d86241e80",
+      "name": "Read Ledger Rows",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        6336,
+        2528
+      ],
+      "onError": "continueOnFail",
+      "notes": "Full read of Whale transfers. Sheets has no filter we can push down, so the window is applied in memory by the next node."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - collapses the whole ledger read into ONE summary item.\n//\n// 'Read Ledger Rows' hands over the entire 'Whale transfers' tab every hour: Sheets has no\n// server-side filter we can push down here, so the window is applied in memory. The slice\n// cap bounds the read the way the reference intends - the weekly ledger rotation (not\n// ported yet) is what keeps the tab small; until then the cap is the safety net.\n//\n// Window key is capturedAt, stamped by Known Wallet Labels at append time. Date.parse of a\n// non-timestamp returns NaN, so a row without one (or a Sheets error item from onError) is\n// filtered out rather than thrown on. A quiet hour returns [] - no digest item, so nothing\n// is appended and no chat noise is made. That is the only sane \"no news\" signal here.\nconst WINDOW_MS = 3600000;\nconst now = Date.now();\nconst num = (v) => {\n\tconst n = Number(v);\n\treturn Number.isFinite(n) ? n : 0;\n};\n\nconst rows = [];\nfor (const raw of $input.all().map((i) => i.json).slice(-5000)) {\n\tconst at = Date.parse(raw.capturedAt ?? raw.time ?? '');\n\tif (Number.isFinite(at) && now - at >= 0 && now - at < WINDOW_MS) rows.push({ ...raw, at });\n}\nif (!rows.length) return [];\n\n// USD bands and safety states. 'usdValue' is already converted human-readable money here:\n// Amount Resolve computed it as amount * price (human amount, not rawAmount) and stamped\n// priceSource 'missing' when CoinGecko had no quote. So: banding on usdValue is correct, and\n// a 'missing' price contributes 0 rather than inventing a number - a $0 line in a whale digest\n// reads as \"could not price it\", which is honest, whereas hiding it would understate the hour.\n// The tiers mirror the reference's severity thresholds (20M / 5M) plus its whale floor, so the\n// digest reads the same way whether or not Classify & Score is ported later.\nconst BANDS = [\n\t['mega', 20e6],\n\t['large', 5e6],\n\t['medium', 1e6],\n\t['gate', 0],\n];\nconst bandOf = (u) => (u > 0 ? ((BANDS.find(([, min]) => u >= min) ?? ['gate', 0])[0]) : null);\nconst bands = { mega: 0, large: 0, medium: 0, gate: 0 };\nconst safety = { clean: 0, risky: 0, unavailable: 0 };\nconst riskyContracts = new Set();\nconst unpriced = { count: 0, contracts: new Set(), rawTokens: 0 };\nconst tokens = new Map();\nconst venues = new Map();\nlet totalUsd = 0;\n\nfor (const r of rows) {\n\tconst usd = num(r.usdValue);\n\ttotalUsd += usd;\n\tconst band = bandOf(usd);\n\tif (band) bands[band]++;\n\n\tif (r.priceSource === 'missing') {\n\t\tunpriced.count++;\n\t\tunpriced.contracts.add(String(r.contract).toLowerCase());\n\t\tif (String(r.metaState) === 'resolved') unpriced.rawTokens += num(r.amount);\n\t}\n\n\tconst state = r.safetyState === 'clean' || r.safetyState === 'risky' ? r.safetyState : 'unavailable';\n\tsafety[state]++;\n\tif (state === 'risky') riskyContracts.add(String(r.contract).toLowerCase());\n\n\tconst sym = String(r.canonicalSymbol || r.token || r.contract || 'unknown').toUpperCase();\n\tconst t = tokens.get(sym) ?? { symbol: sym, count: 0, usd: 0 };\n\tt.count++;\n\tt.usd += usd;\n\ttokens.set(sym, t);\n\n\t// flow INTO a labelled wallet is the desk-relevant direction: an exchange address on\n\t// the receiving end is an inflow (deposit), on the sending end an outflow (sell signal).\n\tfor (const [label, key] of [[r.toLabel, 'to'], [r.fromLabel, 'from']]) {\n\t\tconst name = String(label ?? '').trim();\n\t\tif (!name || name === 'unknown') continue;\n\t\tconst v = venues.get(name) ?? { label: name, inflows: 0, outflows: 0, usd: 0 };\n\t\tv[key === 'to' ? 'inflows' : 'outflows']++;\n\t\tv.usd += usd;\n\t\tvenues.set(name, v);\n\t}\n}\n\nconst top = [...rows]\n\t.sort((a, b) => num(b.usdValue) - num(a.usdValue))\n\t.slice(0, 5)\n\t.map((r) => ({\n\t\tsymbol: String(r.canonicalSymbol || r.token || 'unknown').toUpperCase(),\n\t\tamount: num(r.amount),\n\t\tusdValue: num(r.usdValue),\n\t\tfromLabel: r.fromLabel ?? 'unknown',\n\t\ttoLabel: r.toLabel ?? 'unknown',\n\t\tsafetyState: r.safetyState ?? 'unavailable',\n\t\ttxHash: String(r.txHash ?? '').slice(0, 10),\n\t}));\n\n// Severity counts, because the reference's Telegram and Slack templates read p1/p2 and the\n// ledger has no severity column: Classify & Score was never ported. Rather than rename the\n// template, this node derives severity with that node's own thresholds, from columns the\n// ledger really carries (usdValue, fromLabel, priceSource, from) - see the reference body:\n//\n//   P1  usd >= 20M, or usd >= 5M from an unknown sender that is NOT moving funds to an exchange\n//   P2  usd >= 5M, or >= 3 events from the same sender in the hour, or no reliable USD value\n//   P3  everything else\n//\n// Two honest approximations, both flagged here rather than hidden:\n//   * \"not outflowToExchange\" is Classify & Score's exchange-address list, which this workflow\n//     does not have. A 5M+ transfer from an unlabelled wallet INTO an exchange therefore reads\n//     P1 where the reference would call it P2. Over-flagging is the safe direction to err.\n//   * the >=3 burst is counted inside this one-hour window; the reference counted it from\n//     staticData across a longer memory, so a burst that straddles the hour boundary counts\n//     lower here.\nconst senderCount = new Map();\nfor (const r of rows) {\n\tconst k = String(r.from).toLowerCase();\n\tsenderCount.set(k, (senderCount.get(k) ?? 0) + 1);\n}\nconst sevOf = (r) => {\n\tconst u = num(r.usdValue);\n\tconst unknownSender = !String(r.fromLabel ?? '').trim() || String(r.fromLabel).toLowerCase() === 'unknown';\n\tconst burst = (senderCount.get(String(r.from).toLowerCase()) ?? 0) >= 3;\n\tif (String(r.priceSource) === 'missing') return 'p2'; // unpriceable = review, never discard\n\tif (u >= 20e6 || (u >= 5e6 && unknownSender)) return 'p1';\n\tif (u >= 5e6 || burst) return 'p2';\n\treturn 'p3';\n};\nconst sev = { p1: 0, p2: 0, p3: 0 };\nfor (const r of rows) sev[sevOf(r)]++;\n\nreturn [\n\t{\n\t\tjson: {\n\t\t\twindowStart: new Date(now - WINDOW_MS).toISOString(),\n\t\t\twindowEnd: new Date(now).toISOString(),\n\t\t\tledgerRowsRead: Math.min($input.all().length, 5000),\n\t\t\tcount: rows.length,\n\t\t\ttotalUsd: Math.round(totalUsd),\n\t\t\t...bands,\n\t\t\t...sev,\n\t\t\tp1Contracts: rows.filter((r) => sevOf(r) === 'p1').map((r) => String(r.contract).toLowerCase()).slice(0, 5),\n\t\t\tsafetyClean: safety.clean,\n\t\t\tsafetyRisky: safety.risky,\n\t\t\tsafetyUnavailable: safety.unavailable,\n\t\t\triskyContracts: [...riskyContracts],\n\t\t\tunpriced: { count: unpriced.count, contracts: [...unpriced.contracts], rawTokens: Math.round(unpriced.rawTokens) },\n\t\t\ttop,\n\t\t\ttokens: [...tokens.values()].sort((a, b) => b.usd - a.usd).slice(0, 5),\n\t\t\tvenues: [...venues.values()].sort((a, b) => b.usd - a.usd).slice(0, 5),\n\t\t},\n\t},\n];\n"
+      },
+      "id": "462591a1-4994-4f9e-937a-6dd248971a40",
+      "name": "Last Hour Events",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6544,
+        2528
+      ],
+      "notes": "Collapses the whole read into ONE summary item: counts, top flows, and the severity bands p1/p2/p3 the Telegram template prints. Publishes capturedAt, the age key the weekly branch sorts on."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items'. Turns the model's reply into one Telegram-safe message.\n//\n// Everything the model produced is HTML-escaped and stripped of markdown markers before it\n// reaches Telegram: parse_mode is HTML, so an unescaped '<' or '&' is a 400, and n8n's fallback\n// parse_mode (Markdown, legacy) treats every '*' as an entity that must be paired. Neither is\n// allowed to happen, and a digest that cannot be formatted must still be sent, so the fallbacks\n// here degrade the *shape*, never the delivery.\nconst j = $input.first().json;\n// an agent whose provider failed is set to continue rather than abort the hour, and in that case\n// it forwards the trunk item with no \"output\" at all: distinguish \"answered with nothing\" from\n// \"never answered\", because dumping the input JSON as a bullet would be neither readable nor safe\nconst replied = typeof j.output === 'string' || typeof j.text === 'string';\nconst raw = replied ? String(j.output ?? j.text) : '';\n\nconst esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n// slice BEFORE escaping: cutting a string after esc() can end it inside '&amp;' and Telegram\n// rejects the dangling entity exactly like it rejects an unpaired '*'\nconst clean = (s) =>\n\tesc(\n\t\tString(s)\n\t\t\t.replace(/^\\s*[-*\\u2022]\\s+/, '') // the model's own bullets: Telegram draws them\n\t\t\t.replace(/[*_~`]/g, '') // markdown emphasis is literal noise in HTML mode\n\t\t\t.replace(/\\s+/g, ' ')\n\t\t\t.trim()\n\t\t\t.slice(0, 300),\n\t);\n\n// widest plausible JSON object: fenced block, then outer braces, then the raw text as a last guess\nconst fenced = raw.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\nconst open = raw.indexOf('{');\nconst close = raw.lastIndexOf('}');\nconst attempts = [fenced ? fenced[1] : '', open > -1 && close > open ? raw.slice(open, close + 1) : '', raw].filter(Boolean);\n\nlet parsed = null;\nfor (const a of attempts) {\n\ttry {\n\t\tconst v = JSON.parse(a);\n\t\tif (v && typeof v === 'object' && !Array.isArray(v)) { parsed = v; break; }\n\t\tif (Array.isArray(v)) { parsed = { bullets: v }; break; }\n\t} catch (e) {\n\t\t// not JSON: fall through to the next candidate\n\t}\n}\n\nlet headline = '';\nlet bullets = [];\nif (parsed) {\n\tif (typeof parsed.headline === 'string') headline = clean(parsed.headline);\n\tconst arr = parsed.bullets ?? parsed.lines ?? parsed.items ?? parsed.digest;\n\tconst list = Array.isArray(arr) ? arr : typeof arr === 'string' ? arr.split(/\\n+/) : [];\n\tbullets = list.map(clean).filter(Boolean);\n}\nif (!bullets.length) {\n\t// the model ignored the contract: render what it said, line by line, rather than nothing -\n\t// except the literal non-answers, which would otherwise print as a bullet saying \"null\"\n\tconst nothing = new Set(['', 'null', 'undefined', 'NaN', '{}', '[]']);\n\tif (!nothing.has(String(raw).trim())) {\n\t\tbullets = String(raw)\n\t\t\t.split(/\\n+/)\n\t\t\t.map(clean)\n\t\t\t.filter(Boolean);\n\t}\n}\nbullets = bullets.slice(0, 8);\n\nlet stats = {};\ntry {\n\tstats = $('Last Hour Events').first().json || {};\n} catch (e) {\n\tstats = {}; // reading the trunk by name must never be the reason no message goes out\n}\n// when the agent was skipped by its own error policy it forwards the item it was given, which IS\n// the trunk summary: prefer that over an empty header, because the numbers come from the ledger\nif (!replied) stats = { ...stats, ...j };\nconst num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);\nconst money = (v) => '$' + num(v).toLocaleString('en-US');\n// the glyphs are written literally: they are what the chat shows, and a code node the user can\n// read in the editor should not be a wall of \\uXXXX escapes\nconst head =\n\t'📊 <b>Hourly whale digest</b> - ' + num(stats.count) + ' transfers, ≈' + money(stats.totalUsd) +\n\t' (<b>' + num(stats.p1) + ' P1</b> · <b>' + num(stats.p2) + ' P2</b> · ' + num(stats.p3) + ' P3)';\n\n// Telegram caps a message at 4096 chars and n8n appends its attribution footer; drop whole\n// bullets rather than slicing mid-entity, which would leave '&amp' and fail the send.\nconst MAX = 3600;\nconst lines = bullets.map((b) => '• ' + b);\nif (headline) lines.unshift('<b>' + headline + '</b>');\nlet body = lines.join('\\n');\nwhile (head.length + body.length > MAX && lines.length > 1) {\n\tlines.pop();\n\tbody = lines.join('\\n') + '\\n… truncated';\n}\nconst text = bullets.length\n\t? head + '\\n\\n' + body\n\t: head + '\\n\\n• ' + (replied ? 'the model returned nothing to show' : 'the digest writer did not answer (provider error), so these totals are the whole digest');\n\nreturn [{ json: { text, bulletCount: bullets.length, structured: Boolean(parsed), modelReplied: replied, chars: text.length } }];\n"
+      },
+      "id": "f19b3729-db39-4600-b9a4-93dba42b3b81",
+      "name": "Digest Render",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "position": [
+        7040,
+        2528
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Turns the model's reply into one Telegram-safe message: unwraps code fences, escapes & < >, converts markdown bullets. Everything the model can get wrong is handled here, not in a {{ }} template."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 4 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "c4214278-5982-44f4-b305-7a9b0deb76ea",
+      "name": "Weekly Partitioning Trigger",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        6128,
+        3056
+      ],
+      "notes": "Weekly. Archives ledger rows older than 7 days, then prunes them."
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Whale transfers"
+        },
+        "options": {}
+      },
+      "id": "77a69c31-c7d8-47aa-aec0-d56db86f5f71",
+      "name": "Read Ledger (Weekly)",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "retryOnFail": true,
+      "position": [
+        6352,
+        3056
+      ],
+      "notes": "Full read of the same tab the hourly digest reads - not just the rows to archive."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - decides the age split, writes nothing.\n//\n// Whether a row may be archived is decided by AGE, and the age key is capturedAt. A row carrying\n// no parsable stamp used to end the walk outright, which meant a ledger whose earliest rows\n// predate the capturedAt column could never release anything - those rows sit above every stamped\n// row and blocked it at index 0. The inference below is what the branch needs to be useful.\n//\n// The ledger is appended to and never reordered, so age order == sheet order and the archive set\n// is a CONTIGUOUS PREFIX of the read: walk from the top, stop at the first row that is not\n// provably older than the cutoff. That property is what lets 'Plan Prune Range' talk in row\n// numbers instead of row identities.\n//\n// How an age is proved:\n//   1. its own capturedAt, when that parses as an ISO date - see stamp() below;\n//   2. otherwise INHERITED from the nearest row BELOW it that has one. Append-only means row i was\n//      written before row i + 1, so anything above a provably old row is at least as old as it.\n//      This is what unblocks a ledger whose first rows predate the capturedAt column: they have no\n//      stamp of their own, and they sit above rows that do.\n//   3. still unknown when NOTHING below it carries a stamp - no witness, no inference. Such a row\n//      ends the walk and stays in the ledger rather than being archived and deleted on a guess.\n//      A hand-written row appended at the bottom is the case this protects.\nconst RETAIN_DAYS = 7;\nconst cutoff = Date.now() - RETAIN_DAYS * 24 * 3600e3;\n// Only an ISO-looking stamp is a date. Date.parse('0') is the year 2000 and Date.parse('1') is\n// the 1st of this month, so a blank cell, a stray 0, or a hand-typed note would otherwise read as\n// ancient and get archived. The ledger writes new Date().toISOString(), so this gate accepts what\n// the workflow produces and refuses everything else.\nconst stamp = (r) => {\n  const s = String(r?.capturedAt ?? '');\n  if (!/^\\d{4}-\\d{2}-\\d{2}([T ].*)?$/.test(s)) return NaN;\n  return Date.parse(s);\n};\n\nconst rows = $input.all().map((i) => i.json);\nconst times = rows.map(stamp);\n// One backward pass: each row's own stamp, or the nearest one below it. Row i entered the sheet\n// before row i + 1, so an unstamped row is at least as old as the first stamped row beneath it -\n// that row is the witness. A row with no witness anywhere below it keeps NaN and stops the walk.\nconst effective = new Array(times.length);\nlet witness = NaN;\nfor (let i = times.length - 1; i >= 0; i--) {\n  if (Number.isFinite(times[i])) witness = times[i];\n  effective[i] = witness;\n}\n\nlet splitIndex = 0;\nwhile (splitIndex < rows.length && effective[splitIndex] < cutoff) {\n  // '<' and not '<=': NaN fails it too, so an unknown age always ends the walk\n  splitIndex++;\n}\nif (splitIndex === 0) {\n  return []; // nothing provably older than the retention window - archive and prune never run\n}\n\n// The rows the ledger is about to lose, in read order, unchanged: 'Archive Old Rows' writes them\n// back out by column name, so anything reshaped here would surface as a corrupt archive tab.\nreturn rows.slice(0, splitIndex).map((json) => ({ json }));"
+      },
+      "id": "07d9d8dd-f370-43d1-8a00-4f58bb141a63",
+      "name": "Partition Ledger Rows",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6576,
+        3056
+      ],
+      "notes": "Age split only, writes nothing. Rows younger than the cutoff wait for next week."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Whale transfers archive"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "contract",
+              "displayName": "contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "from",
+              "displayName": "from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "to",
+              "displayName": "to",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rawAmount",
+              "displayName": "rawAmount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "network",
+              "displayName": "network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "txHash",
+              "displayName": "txHash",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chainId",
+              "displayName": "chainId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cgPlatform",
+              "displayName": "cgPlatform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cgId",
+              "displayName": "cgId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "canonicalSymbol",
+              "displayName": "canonicalSymbol",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "decimals",
+              "displayName": "decimals",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priceSource",
+              "displayName": "priceSource",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "usdValue",
+              "displayName": "usdValue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "metaState",
+              "displayName": "metaState",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "safetyState",
+              "displayName": "safetyState",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "safetyFlags",
+              "displayName": "safetyFlags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "safetyResponses",
+              "displayName": "safetyResponses",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "capturedAt",
+              "displayName": "capturedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fromLabel",
+              "displayName": "fromLabel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "toLabel",
+              "displayName": "toLabel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "knownWalletsLoaded",
+              "displayName": "knownWalletsLoaded",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {}
+          }
+        }
+      },
+      "id": "c0652b4c-2dd4-4274-bc6b-223eff19a4ef",
+      "name": "Archive Old Rows",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "retryOnFail": true,
+      "position": [
+        6800,
+        3056
+      ],
+      "notes": "Append-only into \"Whale transfers archive\" (create it once, same header row as the ledger). This is the point of no return: the delete below only runs if this worked."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - exactly one item out, whatever the split archived.\n//\n// Emits the row range 'Prune Ledger Rows' deletes. Row 1 is the header, so data starts at row 2,\n// and the split guarantees the archived rows are the first N of the read: start + N - 1 is their\n// last sheet row. Counted from $('Partition Ledger Rows') rather than from this node's input, so\n// the range can never disagree with what was actually filed into the archive.\nconst archived = $('Partition Ledger Rows').all();\nif (!archived.length) return [];\nreturn [\n  {\n    json: {\n      startRow: 2,\n      amountToDelete: archived.length,\n    },\n  },\n];"
+      },
+      "id": "4e29ad2d-1581-46dd-99cc-4ebddb747f7d",
+      "name": "Plan Prune Range",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7024,
+        3056
+      ],
+      "notes": "Turns the split into one sheet range. No old rows means no item, so no delete."
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Whale transfers"
+        },
+        "startIndex": "={{ $json.startRow }}",
+        "numberToDelete": "={{ $json.amountToDelete }}"
+      },
+      "id": "b3fe6868-fd97-47be-866e-da8409b5a6e1",
+      "name": "Prune Ledger Rows",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "retryOnFail": false,
+      "position": [
+        7248,
+        3056
+      ],
+      "notes": "Deletes the whole range in one call, never retried. Safe only because the ledger is append-only."
+    },
+    {
+      "parameters": {
+        "content": "## Weekly partitioning\n\nEvery Sunday 04:15: rows older than **7 days** are appended to **Whale transfers archive**, only then deleted from **Whale transfers**. Create that tab once, with the same header row.\nIf the archive write fails, the delete never runs; the delete is never retried.",
+        "height": 340,
+        "width": 1376,
+        "color": 7
+      },
+      "id": "2ee7f3fc-2c76-4378-ac0f-db6645d52a18",
+      "name": "Weekly Partitioning (notes)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6064,
+        2928
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## What this does\n\nYour Atria feed watches the chain and delivers every matching ERC-20 transfer to n8n. This workflow turns those events into a priced, safety-checked, labelled ledger in Google Sheets, and posts an hourly whale digest to your Telegram chat. A weekly job keeps the ledger small.\n\nOnly transfers worth $100,000 or more are kept, and only the ones the workflow managed to put a USD price on.\n\n## How it works\n\n- **Atria Trigger**: creates and starts its own ERC-20 Atria feed when you activate the workflow, and delivers the largest transfer of each block.\n- **Token Price & Meta (CoinGecko)**: looks each token market price.\n- **Amount Resolve**: turns the raw token amount into USD value.\n- **USD Value Filter and Whale Gate**: keep only the transfers big enough to be worth alerting on.\n- **Token Safety (GoPlus) and Safety Resolve**: mark the risky tokens, such as honeypots and contracts with a changeable owner.\n- **Known Wallets (Sheets) and Known Wallet Labels**: put a name on the sender and the receiver when you have labelled that address before.\n- **Hourly digest**: reads the ledger back, summarises the last hour, lets Gemini analyze collected transfers, and posts them to Telegram.\n- **Weekly partitioning**: moves rows older than a week into an archive tab, then deletes them from the ledger.\n\n## Setup\n\n1. **Install and import.** Add the `n8n-nodes-atria` community node to your n8n instance, then import this workflow.\n2. **Connect Atria.** In the Atria dashboard (Account → API Keys) create an API key with the scopes `feeds.read`, `feeds.manage`, `outputs.read`, `outputs.manage`, and store it in n8n as an Atria API credential (base URL `https://atria.pulsy.app/api`).\n3. **Create one spreadsheet with three tabs:** `Whale transfers` for the ledger, `Wallets` with two columns `address,label` for your known addresses, and `Whale transfers archive` with the same header as the ledger. The columns the workflow fills are listed on the *Append row in sheet* node.\n4. **Paste the spreadsheet ID** into the six `REPLACE_WITH_SPREADSHEET_ID` fields, and select your Google Sheets credential in the same six nodes.\n5. **Connect Telegram.** Add a Telegram credential and put your chat id into `REPLACE_WITH_TELEGRAM_CHAT_ID`.\n6. **Connect Gemini.** Add a Google Gemini credential to the chat-model node.\n\n### Tuning it\n\n- Whale floor: `WHALE_MIN_USD` in Whale Gate.\n- Ledger retention: `RETAIN_DAYS` in Partition Ledger Rows.\n- Notification rate: Once per Hour.\n\n## Requirements\n\n- An Atria account and an API key.\n- A Google account for the ledger.\n- A Telegram bot and the chat id to post to.\n- A Gemini API key for the digest agent.",
+        "height": 1120,
+        "width": 900
+      },
+      "id": "bed8feae-8f33-4b2e-bdbd-a8958cbfba76",
+      "name": "Main Overview (notes)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5088,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Capture & valuation\nThe trigger decodes `Transfer` logs and emits the largest ERC-20 transfer per block. CoinGecko (branch above) prices each token once - decimals + USD - Amount Resolve converts `rawAmount`, and Whale Gate drops sub-$100k events before paid enrichment.",
+        "height": 452,
+        "width": 832,
+        "color": 7
+      },
+      "id": "b195c383-83f3-4f76-996c-2fb4a4e7a43d",
+      "name": "Capture & Valuation (notes)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6064,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Safety & labelling\nWhale events get GoPlus security flags (honeypot, mintable, owner-change) in one batched call per chain, joined back by chain + address. The Wallets tab adds exchange/treasury labels, then each event is written to the ledger.",
+        "height": 560,
+        "width": 1220,
+        "color": 7
+      },
+      "id": "c7aac800-5f8a-4dc4-ba72-0feb2a98378d",
+      "name": "Safety & Labelling (notes)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6944,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Hourly digest\nRe-reads the ledger, not the chain: last hour's rows collapse into one summary (counts, USD bands, top flows), Gemini writes five bullets, Digest Render makes it Telegram-safe, the bot posts. A quiet hour stays silent.",
+        "height": 468,
+        "width": 1368,
+        "color": 7
+      },
+      "id": "8a479340-6819-4174-b87f-fa55bddead56",
+      "name": "Hourly Digest (notes)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6064,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run mode: 'Run Once for All Items' - drops transfers Amount Resolve could not price,\n// i.e. `usdValue === null`, BEFORE they reach the whale gate and spend GoPlus/Sheets quota.\n// This is the only place that discards an event for a missing USD value: Whale Gate below\n// deliberately KEEPS unvaluable events (it filters only on a value it could compute), so the\n// \"ignore unpriced transfers\" request belongs here, one node upstream of the gate.\n// Explicit pairedItem keeps the trigger’s item indices intact for every branch downstream.\nconst inputs = $input.all();\nconst kept = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const item = inputs[i].json;\n  if (item.usdValue === null || item.usdValue === undefined) continue;\n  kept.push({ json: item, pairedItem: i });\n}\nreturn kept;\n"
+      },
+      "id": "147fc001-0a9d-4349-a2af-232d1894ff0f",
+      "name": "USD Value Filter1",
+      "notesInFlow": true,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6544,
+        2112
+      ],
+      "notes": "Drops transfers Amount Resolve could not price (usdValue is null) before the whale gate, so unpriced events never reach GoPlus/Sheets or the ledger. This is the only node that discards an event for a missing USD value - Whale Gate below keeps everything it can price."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Atria Trigger": {
+      "main": [
+        [
+          {
+            "node": "Unique Contracts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Amount Resolve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unique Contracts": {
+      "main": [
+        [
+          {
+            "node": "Token Price & Meta (CoinGecko)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amount Resolve": {
+      "main": [
+        [
+          {
+            "node": "USD Value Filter1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whale Gate": {
+      "main": [
+        [
+          {
+            "node": "Unique Whale Contracts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Known Wallets (Sheets)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Safety Join (Events + GoPlus)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Unique Whale Contracts": {
+      "main": [
+        [
+          {
+            "node": "Token Safety (GoPlus)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GoPlus Per Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Safety (GoPlus)": {
+      "main": [
+        [
+          {
+            "node": "GoPlus Per Chain",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Safety Join (Events + GoPlus)": {
+      "main": [
+        [
+          {
+            "node": "Safety Resolve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safety Resolve": {
+      "main": [
+        [
+          {
+            "node": "Known Wallet Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GoPlus Per Chain": {
+      "main": [
+        [
+          {
+            "node": "Safety Join (Events + GoPlus)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Wallet Labels": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Digest Writer (AI Agent)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest Writer (AI Agent)": {
+      "main": [
+        [
+          {
+            "node": "Digest Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest Render": {
+      "main": [
+        [
+          {
+            "node": "Telegram Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Partitioning Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Ledger (Weekly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Ledger (Weekly)": {
+      "main": [
+        [
+          {
+            "node": "Partition Ledger Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Partition Ledger Rows": {
+      "main": [
+        [
+          {
+            "node": "Archive Old Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive Old Rows": {
+      "main": [
+        [
+          {
+            "node": "Plan Prune Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Prune Range": {
+      "main": [
+        [
+          {
+            "node": "Prune Ledger Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly Digest Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Ledger Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Ledger Rows": {
+      "main": [
+        [
+          {
+            "node": "Last Hour Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Last Hour Events": {
+      "main": [
+        [
+          {
+            "node": "Digest Writer (AI Agent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "USD Value Filter1": {
+      "main": [
+        [
+          {
+            "node": "Whale Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}

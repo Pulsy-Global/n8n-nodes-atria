@@ -3,6 +3,65 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semver](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Workflow documentation as a build stage.** `scripts/workflow-docs-stage.mjs` owns the
+  workflow's `description` and the per-node `notes`, so a rebuild can no longer silently drop
+  either. The description states that the ERC-20 feed creation code ships with the workflow (the
+  trigger creates and starts the feed itself) and prints the exact payload every stage below it
+  reads — `contract`, `from`, `to`, `rawAmount`, `network`, `txHash`. Note: only applied to a node
+  that has none, so anything typed on the canvas survives.
+- **`wf:example`** (`scripts/export-example-workflow.mjs`): writes the pending graph to
+  `examples/atria-large-erc20-transfers-digest-workflow.json` with every instance-specific value
+  redacted (credential ids, the spreadsheet id including the `cachedResultUrl` links, the Telegram
+  chat id) and refuses to write if any of them survives.
+
+- **Workflow tooling** (`wf:pull` / `wf:build` / `wf:export` / `wf:apply`): the reference
+  workflow is refactored into `workflows/*.json` instead of the n8n editor, and the graph is read
+  through n8n's own CLI export — never by opening `~/.n8n/database.sqlite` from the host, which
+  corrupts the container's WAL view over the macOS bind mount.
+- `tg:chat-id` (`scripts/telegram-chat-id.mjs`): reads the token from `TELEGRAM_BOT_TOKEN` and
+  lists the chat ids the bot can actually write to, via read-only `getMe`/`getUpdates`.
+
+### Fixed
+
+- **Hourly digest: `[undefined] P1 · [undefined] P2`.** The Telegram template came from the
+  reference, whose window node publishes severity counters; this port published money bands named
+  `mega`/`large`/`medium`/`gate`. `Last Hour Events` now also derives `p1`/`p2`/`p3` using the
+  reference's `Classify & Score` thresholds, from the columns the ledger really carries.
+- **Hourly digest: Telegram 400 `can't parse entities`.** With an empty *Additional Fields*, n8n's
+  Telegram node sends `parse_mode: Markdown` (legacy), where every `*` the model emits opens an
+  italic entity; an odd count is a hard rejection. The digest node is now set to `HTML` and the
+  model's free text is escaped (`&`, `<`, `>`) with `*`/`-` bullets converted to `•`. `chatId` and
+  credentials are never rewritten.
+- **Builder: a rebuild deleted the canvas tail.** `mergeBranch` now treats everything below
+  `Last Hour Events` as canvas-owned: it neither resurrects nodes that were deleted nor orphans
+  ones that were added, and it preserves live `id`/`position` while owning node parameters.
+
+## [0.2.1] - 2026-11-09
+
+### Added
+
+- **Atria Trigger: "Create New Feed" feed source.** *Feed Source → Create New Feed* adds *Feed
+  Name*, *Network*, *Data Type*, *Filter Code* (JavaScript, edited in the node) and *Start From*
+  (*Latest Block*, the default, or *Specific Block* with the block number). On activation the node creates its webhook output, creates the feed with those
+  parameters, attaches the output and starts the feed. Re-activating after a parameter change
+  writes the new values into the same feed instead of creating a duplicate, and deactivation
+  pauses (never deletes) the self-created feed. Created feeds are written with
+  `ContinueOnError` handling, no transform function, no end block and no block delay, since
+  those have no node parameter.
+
+### Changed
+
+- The trigger's `Feed` parameter is now shown for *Feed Source → Existing Feed* only. Existing
+  workflows keep working unchanged: the new `feedSource` parameter defaults to "Existing Feed".
+
+### Removed
+
+- The stale "Known limitations (v0.1)" heading in the README now describes the current state.
+
 ## [0.2.0] - 2026-10-05
 
 ### Added

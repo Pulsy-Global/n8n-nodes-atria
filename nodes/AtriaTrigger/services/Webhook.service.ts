@@ -7,9 +7,27 @@ import {
 	TRIGGER_STATE_KEY_PREFIX,
 } from '../constants/AtriaTrigger.constants';
 
+/**
+ * The create-mode parameters a self-created feed is built from. Stored with the
+ * registration state so a later activation can tell whether the parameters
+ * (typically the filter code) changed and the feed needs updating.
+ */
+export interface CreatedFeedConfig {
+	name: string;
+	networkId: string;
+	dataType: string;
+	filterCode: string;
+	/** `null` means "latest block" (Start From › Latest Block). */
+	startBlock: number | null;
+}
+
 export interface TriggerRegistrationState {
 	/** Existing feed this node's output is attached to. */
 	feedId?: string;
+	/** Feed this node created itself in "Create New Feed" mode (paused, not deleted, on teardown). */
+	createdFeedId?: string;
+	/** Parameters the self-created feed was last created/updated with. */
+	createdFeedConfig?: CreatedFeedConfig;
 	outputId?: string;
 	url?: string;
 	createdInManualRun?: boolean;

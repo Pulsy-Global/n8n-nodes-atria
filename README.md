@@ -21,9 +21,9 @@ the nodes manage and consume existing feeds.
 
 ### Atria Trigger (webhook trigger)
 
-Starts the workflow whenever an **existing feed** (selected by search or pasted UUID) delivers
-a new result.
+Starts the workflow whenever an Atria feed delivers a new result.
 
+**Feed Source → Existing Feed** attaches to an existing feed (selected by search or pasted UUID).
 On **activation** the node automatically:
 
 1. creates a dedicated webhook output pointing at the workflow's production webhook URL;
@@ -31,6 +31,15 @@ On **activation** the node automatically:
 
 On **deactivation** it detaches and deletes the output again. The feed itself is never
 modified otherwise, and never started or paused from here.
+
+**Feed Source → Create New Feed** lets you define the feed inline instead: *Feed Name*,
+*Network*, *Data Type*, *Filter Code* (JavaScript run against each block — return the data
+to deliver, or `null` to skip) and *Start From*, either *Latest Block* (default) or
+*Specific Block* for a backfill. On activation the
+node creates the webhook output, creates the feed with that code, attaches the output and
+starts the feed. Re-activating after editing the parameters updates the same feed (keeping
+its cursor); on deactivation the feed is paused but never deleted. Created feeds use
+`ContinueOnError` handling, so a block the filter code throws on does not stop the feed.
 
 Each trigger item contains the delivery payload:
 
@@ -69,6 +78,24 @@ Enable *Options → Include Delivery Headers* to also expose the `X-Atria-Feed-I
 4. Connect the trigger to Slack / Telegram / HTTP Request / whatever you like.
 
 Every matching blockchain event now runs the workflow.
+
+> A ready-made version of this scenario ships with the package: import
+> `examples/atria-telegram-alerts-workflow.json` — it forwards every event your feed delivers to
+> Telegram (filtering is done by the feed) and adds a daily feed health check.
+
+## Full workflow examples
+
+Importable, template-ready graphs with sticky-note setup docs (each has a matching
+`*-description.md` for the n8n community listing):
+
+| Workflow | File | Pattern |
+| --- | --- | --- |
+| 🐋 Large ERC-20 Transfers Digest | `examples/atria-large-erc20-transfers-digest-workflow.json` | created ERC-20 feed → valuation + safety + labels → Sheets ledger → hourly AI digest → weekly archiving |
+| 🐋 Whale & Large-Transfer Intelligence Desk | `examples/atria-whale-intelligence-desk-workflow.json` | trigger → multi-source enrichment → cooldown + rolling 24h state → AI severity → P1/P2/P3 routing → hourly AI digest |
+| 🛡️ AML Sanctions Screening for On-Chain Deposits | `examples/atria-aml-screening-workflow.json` | trigger → blocklist/allowlist gate → AI risk memo → Notion case with 30-min SLA + auto-escalation → audit ledger → weekly report |
+
+Both assume the feed fields from the ERC-20 transfers example (`from`, `to`, `amount`,
+`tokenSymbol`, `txHash`) and mark every user-specific value as `REPLACE_WITH_*`.
 
 ## Recipes with the action node
 
@@ -124,9 +151,11 @@ Node versions, which is why Docker is the recommended path here.
   Create a temporary output manually with **Atria → Output → Create** pointing at the
   `webhook-test/...` URL, attach it to your feed, fire a test execution, then delete it.
 
-## Known limitations (v0.1)
+## Known limitations
 
-- Webhook outputs only for output CRUD (Atria currently delivers to webhook targets only).
+- Only webhook outputs can be created (Atria currently delivers to webhook targets only).
+- Created feeds are configured from the trigger's minimal parameter set — networks come from
+  `GET /config/networks` and fall back to the bundled list when that endpoint rejects API keys.
 - No HMAC signing of deliveries yet (Atria doesn't sign webhook payloads). Use a custom header as a
   shared secret and verify it downstream if you need authentication.
 - Test mode ("Listen for test event") does not run the registration hooks — n8n never calls

@@ -1,7 +1,9 @@
 import type {
 	IHookFunctions,
+	ILoadOptionsFunctions,
 	IDataObject,
 	INodeExecutionData,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookFunctions,
@@ -11,16 +13,18 @@ import { NodeConnectionTypes } from 'n8n-workflow';
 import { makeListSearchHandler } from '../Shared/lib/list-search';
 import { PROBE_HEADER } from './constants/AtriaTrigger.constants';
 import { FeedService } from '../Shared/services/Feed.service';
+import { NetworkService } from '../Shared/services/Network.service';
 import { TriggerRegistrationService } from './services/Registration.service';
 import { feedSourceProperties } from './resources/feed-source';
+import { createFeedProperties } from './resources/create-feed';
 import { triggerOptionsProperties } from './resources/options';
 
 /**
- * On activation this node creates a webhook output and attaches it to an
- * existing Atria feed; the workflow starts whenever that feed delivers
- * results. On deactivation the output is detached and deleted. The feed
- * itself is never created, started or paused from here. All lifecycle logic
- * lives in `TriggerRegistrationService`.
+ * On activation this node creates a webhook output and delivers a feed's
+ * results through it. With "Feed Source › Create New Feed" it also creates and
+ * starts that feed; on deactivation the output is detached and deleted and a
+ * self-created feed is only paused. All lifecycle logic lives in
+ * `TriggerRegistrationService`.
  */
 export class AtriaTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -30,8 +34,9 @@ export class AtriaTrigger implements INodeType {
 		group: ['trigger'],
 		version: 1,
 		description:
-			'Starts the workflow when an existing Atria feed delivers new blockchain results',
-		subtitle: '={{ $parameter["feedId"] }}',
+			'Starts the workflow when an Atria feed delivers new blockchain results — attaching to an existing feed or creating one from filter code',
+		subtitle:
+			'={{ $parameter["feedSource"] === "create" ? "Create new feed: " + $parameter["createName"] : $parameter["feedId"] }}',
 		defaults: { name: 'Atria Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
@@ -46,7 +51,7 @@ export class AtriaTrigger implements INodeType {
 				path: 'atria',
 			},
 		],
-		properties: [...feedSourceProperties, ...triggerOptionsProperties],
+		properties: [...feedSourceProperties, ...createFeedProperties, ...triggerOptionsProperties],
 	};
 
 	methods = {
@@ -55,6 +60,11 @@ export class AtriaTrigger implements INodeType {
 				(ctx, skip, top, filter) => new FeedService(ctx).searchPage(skip, top, filter),
 				(f) => ({ name: `${f.name} (${f.status ?? 'unknown'})`, value: f.id }),
 			),
+		},
+		loadOptions: {
+			async networkLoader(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				return new NetworkService(this).getEnvironmentOptions();
+			},
 		},
 	};
 
